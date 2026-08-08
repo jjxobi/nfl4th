@@ -1,0 +1,33 @@
+[project]
+name = "nfl4th"
+version = "0.1.0"
+description = "Predicts NFL head coach 4th down tendencies from play by play history"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "nfl_data_py>=0.3.3",
+    "pandas>=1.5,<2.0",
+    "numpy>=1.26",
+    "pyarrow>=14.0",
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+    "torch>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
