@@ -1,0 +1,275 @@
+---
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+const path = Astro.url.pathname;
+const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={Astro.url.href} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <link rel="canonical" href={Astro.url.href} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Libre+Franklin:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="wordmark" href="/">
+          <span class="pylon" aria-hidden="true"></span>
+          <span class="wordmark-text">
+            <span class="wordmark-main">4th Down</span>
+            <span class="wordmark-sub">Coach Tendencies</span>
+          </span>
+        </a>
+        <nav aria-label="Primary">
+          <a href="/" aria-current={isActive("/") ? "page" : undefined}>Predictor</a>
+          <a href="/coaches" aria-current={isActive("/coaches") ? "page" : undefined}>Coaches</a>
+        </nav>
+      </div>
+      <div class="hash-rule" aria-hidden="true"></div>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="hash-rule" aria-hidden="true"></div>
+      <p>Built on NFL play by play data via nflverse, 2010 onward.</p>
+    </footer>
+  </body>
+</html>
+<style>
+  :global(:root) {
+    --color-bg: #0b1210;
+    --color-surface: #121c18;
+    --color-surface-raised: #182620;
+    --color-line: #2a3d35;
+    --color-text: #edebe2;
+    --color-text-dim: #93a69b;
+    --color-accent: #ff6a2c;
+    --color-accent-2: #ffd23f;
+
+    --font-display: "Oswald", "Arial Narrow", sans-serif;
+    --font-body: "Libre Franklin", system-ui, -apple-system, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+    --space-2: 0.5rem;
+    --space-3: 1rem;
+    --space-4: 1.5rem;
+    --space-5: 2.5rem;
+    --space-6: 4rem;
+
+    color-scheme: dark;
+  }
+
+  :global(*),
+  :global(*::before),
+  :global(*::after) {
+    box-sizing: border-box;
+  }
+
+  :global(html) {
+    background: var(--color-bg);
+  }
+
+  :global(body) {
+    margin: 0;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    background-image: repeating-linear-gradient(
+      180deg,
+      rgba(255, 106, 44, 0.035) 0px,
+      rgba(255, 106, 44, 0.035) 1px,
+      transparent 1px,
+      transparent 96px
+    );
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :global(h1),
+  :global(h2),
+  :global(h3) {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+    margin: 0 0 var(--space-3);
+    color: var(--color-text);
+  }
+
+  :global(h1) {
+    font-size: clamp(2.25rem, 4vw + 1rem, 3.5rem);
+    text-transform: uppercase;
+  }
+
+  :global(p) {
+    margin: 0 0 var(--space-3);
+    color: var(--color-text-dim);
+    max-width: 60ch;
+  }
+
+  :global(a) {
+    color: inherit;
+  }
+
+  :global(:focus-visible) {
+    outline: 2px solid var(--color-accent-2);
+    outline-offset: 3px;
+  }
+
+  .hash-rule {
+    height: 3px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--color-accent) 0,
+      var(--color-accent) 2px,
+      transparent 2px,
+      transparent 16px
+    );
+    opacity: 0.55;
+  }
+
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-bg);
+  }
+
+  .header-inner {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    text-decoration: none;
+  }
+
+  .pylon {
+    display: inline-block;
+    width: 14px;
+    height: 20px;
+    flex: none;
+    background: var(--color-accent);
+    clip-path: polygon(0% 100%, 100% 100%, 78% 0%, 22% 0%);
+  }
+
+  .wordmark-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+  }
+
+  .wordmark-main {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .wordmark-sub {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+
+  nav {
+    display: flex;
+    gap: var(--space-4);
+  }
+
+  nav a {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--color-text-dim);
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  nav a:hover {
+    color: var(--color-text);
+  }
+
+  nav a[aria-current="page"] {
+    color: var(--color-text);
+    border-bottom-color: var(--color-accent);
+  }
+
+  main {
+    flex: 1;
+    max-width: 72rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .site-footer {
+    margin-top: auto;
+  }
+
+  .site-footer p {
+    max-width: none;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    color: var(--color-text-dim);
+    padding: var(--space-4);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    nav a {
+      transition: none;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .header-inner {
+      padding: var(--space-3);
+    }
+
+    main {
+      padding: var(--space-5) var(--space-3);
+    }
+  }
+</style>

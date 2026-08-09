@@ -115,7 +115,72 @@ To reproduce the Results numbers above (train 2010-2023, test on 2025):
 .venv/Scripts/python scripts/run_pipeline.py --train-start 2010 --train-end 2024 --val-end 2025 --test-end 2026
 ```
 
+## Backend API
+
+The trained models are also served behind a small FastAPI backend, so a web
+app can get predictions without retraining anything. The committed serving
+artifacts in `api/models/` were produced by running the full pipeline with
+`--model-dir api/models` against the complete dataset.
+
+Run it locally:
+
+```bash
+.venv/Scripts/python -m pip install -e ".[api]"
+.venv/Scripts/python scripts/run_api.py
+```
+
+Endpoints:
+- `GET /` - health check
+- `GET /coaches` - every coach's tendency profile
+- `GET /coaches/{name}` - one coach's profile
+- `POST /predict` - given a situation and a coach, returns the model's
+  predicted decision, that coach's career average, and a coach-agnostic
+  league baseline
+
+Interactive docs are available at `/docs` once the server is running.
+
+## Frontend
+
+A static Astro site in `frontend/` consumes the backend API: a situation
+predictor and a coach tendency browser. Requires Node >= 22.12.
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+`frontend/.env` needs `PUBLIC_API_URL` pointing at a running backend (see
+`frontend/.env.example`).
+
+## Deployment
+
+Backend deploys to [Render](https://render.com) as a free-tier Python web
+service, using the `render.yaml` blueprint at the repo root. Frontend
+deploys to [Netlify](https://netlify.com), using `frontend/netlify.toml`,
+with `frontend` set as the site's base directory.
+
+To actually deploy:
+1. Push this repo to GitHub.
+2. On Render, create a new Blueprint from the repo; it reads `render.yaml`
+   automatically. Set the `ALLOWED_ORIGINS` environment variable to the
+   frontend's real URL once you know it.
+3. On Netlify, create a new site from the repo, with `frontend` as the base
+   directory. Set `PUBLIC_API_URL` in Netlify's environment variables to the
+   Render service's URL. The first deploy happens before this variable
+   exists, so trigger a redeploy afterward to pick it up.
+4. Point a subdomain (e.g. `4thdown.yourdomain.com`) at the Netlify site via
+   a DNS CNAME record, then add it as a custom domain in Netlify's site
+   settings.
+
+`frontend/astro.config.mjs` currently sets `site` to a placeholder
+(`https://4thdown.example.com`) so Open Graph tags resolve to absolute URLs.
+Update it to the real subdomain once DNS is set up.
+
 ## What's next
 
-This is phase 1: the data pipeline and modeling core. Phase 2 will put this
-behind a small web app so you can look up any coach or situation directly.
+The next planned phase is automated weekly retraining: a scheduled job that
+pulls the latest nflverse data as each week's games complete, retrains both
+models, and refreshes the served artifacts in `api/models/` without any
+manual intervention.
