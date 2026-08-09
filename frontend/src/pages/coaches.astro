@@ -7,6 +7,10 @@ import Layout from "../layouts/Layout.astro";
     <h1>Coach Tendencies</h1>
     <p class="coach-lede">Click a column to sort. Click a coach to see their full profile.</p>
     <p class="coach-summary" id="coach-summary" aria-live="polite">Loading coach data&hellip;</p>
+    <label class="filter-toggle">
+      <input type="checkbox" id="current-only" checked />
+      <span>Current head coaches only</span>
+    </label>
   </div>
 
   <div class="coach-table-wrap">
@@ -31,11 +35,13 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { getCoaches, type CoachProfile, type DecisionRates } from "../lib/api";
+  import { getCoaches, getHealth, type CoachProfile, type DecisionRates } from "../lib/api";
 
   let coaches: CoachProfile[] = [];
   let sortKey = "go_for_it";
   let sortDescending = true;
+  let latestSeason: number | null = null;
+  let currentOnly = true;
 
   const columnLabels: Record<string, string> = {
     coach: "coach name",
@@ -54,8 +60,15 @@ import Layout from "../layouts/Layout.astro";
     return "";
   }
 
+  function visibleCoaches(): CoachProfile[] {
+    if (currentOnly && latestSeason !== null) {
+      return coaches.filter((coach) => coach.last_season === latestSeason);
+    }
+    return coaches;
+  }
+
   function sortedCoaches(): CoachProfile[] {
-    return [...coaches].sort((a, b) => {
+    return [...visibleCoaches()].sort((a, b) => {
       const av = sortValue(a, sortKey);
       const bv = sortValue(b, sortKey);
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
@@ -75,7 +88,8 @@ import Layout from "../layouts/Layout.astro";
   function updateSummary() {
     const summary = document.getElementById("coach-summary")!;
     const direction = sortDescending ? "highest to lowest" : "lowest to highest";
-    summary.textContent = `${coaches.length} coaches on file, sorted by ${columnLabels[sortKey]}, ${direction}.`;
+    const count = visibleCoaches().length;
+    summary.textContent = `${count} coaches on file, sorted by ${columnLabels[sortKey]}, ${direction}.`;
   }
 
   function selectRow(row: HTMLTableRowElement, coach: CoachProfile) {
@@ -170,9 +184,15 @@ import Layout from "../layouts/Layout.astro";
 
   updateSortIndicators();
 
-  getCoaches()
-    .then((data) => {
-      coaches = data;
+  document.getElementById("current-only")!.addEventListener("change", (event) => {
+    currentOnly = (event.target as HTMLInputElement).checked;
+    render();
+  });
+
+  Promise.all([getCoaches(), getHealth()])
+    .then(([coachData, health]) => {
+      coaches = coachData;
+      latestSeason = health.latest_season;
       render();
     })
     .catch((error) => {
@@ -199,6 +219,22 @@ import Layout from "../layouts/Layout.astro";
     text-transform: uppercase;
     color: var(--color-accent-2);
     margin: 0;
+  }
+
+  .filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: var(--space-3);
+    font-size: 0.9rem;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .filter-toggle input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--color-accent);
   }
 
   .coach-table-wrap {

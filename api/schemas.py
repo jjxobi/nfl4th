@@ -13,6 +13,7 @@ class CoachProfile(BaseModel):
     coach: str
     n_decisions: int
     shrinkage_weight: float
+    last_season: int
     punt: DecisionRates
     field_goal: DecisionRates
     go_for_it: DecisionRates

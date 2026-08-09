@@ -1,0 +1,489 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="4th Down Predictor | NFL Coach Tendencies" description="Enter a 4th down situation and see what an NFL coach is actually likely to do, based on real historical tendency.">
+  <section class="intro">
+    <p class="eyebrow">The predictor</p>
+    <h1>What will this coach actually do?</h1>
+    <p class="lede">
+      Set up a 4th down situation and pick a coach. The model weighs how that coach has actually
+      called this spot against what a league-average coach would do here.
+    </p>
+  </section>
+
+  <section class="predictor">
+    <form id="predict-form">
+      <p class="eyebrow">The situation</p>
+
+      <label class="field field-coach">
+        <span class="field-label">Coach</span>
+        <select id="coach" required>
+          <option value="" disabled selected>Loading coaches&hellip;</option>
+        </select>
+      </label>
+
+      <div class="field-grid">
+        <label class="field">
+          <span class="field-label">Yards to go</span>
+          <input type="number" id="ydstogo" min="1" max="99" value="2" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Yard line</span>
+          <span class="field-hint">Distance from opponent's end zone</span>
+          <input type="number" id="yardline_100" min="1" max="99" value="40" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Score differential</span>
+          <span class="field-hint">Positive if leading</span>
+          <input type="number" id="score_differential" min="-60" max="60" value="0" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Minutes remaining</span>
+          <span class="field-hint">In the game</span>
+          <input type="number" id="minutes_remaining" min="0" max="59" value="30" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Seconds</span>
+          <span class="field-hint">Within that minute</span>
+          <input type="number" id="seconds_remaining" min="0" max="59" value="0" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Quarter</span>
+          <input type="number" id="qtr" min="1" max="5" value="2" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Offense timeouts</span>
+          <span class="field-hint">Remaining</span>
+          <input type="number" id="posteam_timeouts_remaining" min="0" max="3" value="3" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Defense timeouts</span>
+          <span class="field-hint">Remaining</span>
+          <input type="number" id="defteam_timeouts_remaining" min="0" max="3" value="3" required />
+        </label>
+        <label class="field field-checkbox">
+          <input type="checkbox" id="is_home" checked />
+          <span class="field-label">Home team has the ball</span>
+        </label>
+      </div>
+
+      <button type="submit" id="predict-submit">Predict the call</button>
+    </form>
+  </section>
+
+  <section id="result-section" class="result-section" hidden>
+    <p class="eyebrow">The breakdown</p>
+    <div id="result"></div>
+  </section>
+</Layout>
+
+<script>
+  import { getCoaches, predict, type DecisionProbabilities } from "../lib/api";
+
+  const coachSelect = document.getElementById("coach") as HTMLSelectElement;
+
+  getCoaches()
+    .then((coaches) => {
+      coachSelect.innerHTML = "";
+      for (const coach of coaches) {
+        const option = document.createElement("option");
+        option.value = coach.coach;
+        option.textContent = coach.coach;
+        coachSelect.appendChild(option);
+      }
+    })
+    .catch((error) => {
+      coachSelect.innerHTML = `<option value="">Could not load coaches</option>`;
+      console.error(error);
+    });
+
+  function renderProbabilities(label: string, tag: string, note: string, probs: DecisionProbabilities, featured: boolean): string {
+    const goPct = probs.go_for_it * 100;
+    const puntPct = probs.punt * 100;
+    const fgPct = probs.field_goal * 100;
+
+    return `
+      <article class="result-card${featured ? " featured" : ""}">
+        <div class="result-card-head">
+          <h3>${label}</h3>
+          <span class="result-tag">${tag}</span>
+        </div>
+        <p class="note">${note}</p>
+        <div class="meter" role="img" aria-label="Go for it ${goPct.toFixed(1)} percent, field goal ${fgPct.toFixed(1)} percent, punt ${puntPct.toFixed(1)} percent">
+          <span class="meter-seg seg-go" style="width: ${goPct}%"></span>
+          <span class="meter-seg seg-fg" style="width: ${fgPct}%"></span>
+          <span class="meter-seg seg-punt" style="width: ${puntPct}%"></span>
+        </div>
+        <dl class="prob-list">
+          <div class="prob-row">
+            <dt><i class="swatch swatch-go" aria-hidden="true"></i>Go for it</dt>
+            <dd>${goPct.toFixed(1)}%</dd>
+          </div>
+          <div class="prob-row">
+            <dt><i class="swatch swatch-fg" aria-hidden="true"></i>Field goal</dt>
+            <dd>${fgPct.toFixed(1)}%</dd>
+          </div>
+          <div class="prob-row">
+            <dt><i class="swatch swatch-punt" aria-hidden="true"></i>Punt</dt>
+            <dd>${puntPct.toFixed(1)}%</dd>
+          </div>
+        </dl>
+      </article>
+    `;
+  }
+
+  const form = document.getElementById("predict-form") as HTMLFormElement;
+  const submitButton = document.getElementById("predict-submit") as HTMLButtonElement;
+  const resultSection = document.getElementById("result-section") as HTMLElement;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const result = document.getElementById("result")!;
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Predicting…";
+
+    try {
+      const minutesRemaining = Number((document.getElementById("minutes_remaining") as HTMLInputElement).value);
+      const secondsRemaining = Number((document.getElementById("seconds_remaining") as HTMLInputElement).value);
+
+      const situation = {
+        coach: coachSelect.value,
+        ydstogo: Number((document.getElementById("ydstogo") as HTMLInputElement).value),
+        yardline_100: Number((document.getElementById("yardline_100") as HTMLInputElement).value),
+        score_differential: Number((document.getElementById("score_differential") as HTMLInputElement).value),
+        game_seconds_remaining: minutesRemaining * 60 + secondsRemaining,
+        qtr: Number((document.getElementById("qtr") as HTMLInputElement).value),
+        posteam_timeouts_remaining: Number((document.getElementById("posteam_timeouts_remaining") as HTMLInputElement).value),
+        defteam_timeouts_remaining: Number((document.getElementById("defteam_timeouts_remaining") as HTMLInputElement).value),
+        is_home: (document.getElementById("is_home") as HTMLInputElement).checked,
+      };
+
+      const response = await predict(situation);
+
+      resultSection.hidden = false;
+      result.innerHTML = `
+        ${renderProbabilities("Model prediction", "This situation", "For this exact situation.", response.predicted, true)}
+        ${renderProbabilities("This coach's career average", "Career-wide", "Across every 4th down they've faced, not specific to this situation.", response.coach_career_average, false)}
+        ${renderProbabilities("League baseline", "This situation", "A coach-agnostic model, for this exact situation.", response.league_baseline, false)}
+      `;
+      resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      resultSection.hidden = false;
+      result.innerHTML = `<p class="error">Something went wrong: ${error instanceof Error ? error.message : "unknown error"}</p>`;
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Predict the call";
+    }
+  });
+</script>
+
+<style>
+  .intro {
+    max-width: 52rem;
+    margin-bottom: var(--space-5);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 var(--space-2);
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    max-width: 46rem;
+  }
+
+  .predictor {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+    position: relative;
+  }
+
+  .predictor::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--color-accent) 0,
+      var(--color-accent) 2px,
+      transparent 2px,
+      transparent 16px
+    );
+    opacity: 0.55;
+    border-radius: 6px 6px 0 0;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .field-label {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+
+  .field-hint {
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    color: var(--color-text-dim);
+    opacity: 0.75;
+    margin-top: -0.25rem;
+  }
+
+  .field input[type="number"],
+  .field select {
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    border-radius: 4px;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    padding: 0.6rem 0.75rem;
+    width: 100%;
+    transition: border-color 0.15s ease;
+  }
+
+  .field input[type="number"]:hover,
+  .field select:hover {
+    border-color: var(--color-text-dim);
+  }
+
+  .field input[type="number"]:focus-visible,
+  .field select:focus-visible {
+    border-color: var(--color-accent);
+  }
+
+  .field-coach select {
+    font-size: 1.05rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--space-3) var(--space-4);
+  }
+
+  .field-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    align-self: end;
+  }
+
+  .field-checkbox input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--color-accent);
+  }
+
+  .field-checkbox .field-label {
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--color-text);
+  }
+
+  button[type="submit"] {
+    align-self: flex-start;
+    background: var(--color-accent);
+    border: none;
+    border-radius: 4px;
+    color: #14100a;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.85rem 1.75rem;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  button[type="submit"]:hover:not(:disabled) {
+    background: var(--color-accent-2);
+  }
+
+  button[type="submit"]:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .result-section {
+    margin-bottom: var(--space-6);
+  }
+
+  :global(.result-card) {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    padding: var(--space-4);
+  }
+
+  :global(.result-card.featured) {
+    background: var(--color-surface-raised);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px rgba(255, 106, 44, 0.15), 0 12px 30px -18px rgba(255, 106, 44, 0.5);
+  }
+
+  :global(#result) {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  :global(#result .result-card.featured) {
+    grid-column: 1 / -1;
+  }
+
+  @media (min-width: 46rem) {
+    :global(#result) {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  :global(.result-card-head) {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: 0.25rem;
+  }
+
+  :global(.result-card h3) {
+    font-size: 1.15rem;
+    margin: 0;
+  }
+
+  :global(.result-tag) {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+    white-space: nowrap;
+  }
+
+  :global(.result-card .note) {
+    font-size: 0.85rem;
+    margin-bottom: var(--space-3);
+  }
+
+  :global(.meter) {
+    display: flex;
+    width: 100%;
+    height: 0.9rem;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    margin-bottom: var(--space-3);
+  }
+
+  :global(.meter-seg) {
+    height: 100%;
+  }
+
+  :global(.seg-go) {
+    background: var(--color-accent);
+  }
+
+  :global(.seg-fg) {
+    background: var(--color-accent-2);
+  }
+
+  :global(.seg-punt) {
+    background: #57a9b3;
+  }
+
+  :global(.prob-list) {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  :global(.prob-row) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+
+  :global(.prob-row dt) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-dim);
+  }
+
+  :global(.prob-row dd) {
+    margin: 0;
+    color: var(--color-text);
+    font-weight: 500;
+  }
+
+  :global(.swatch) {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 2px;
+  }
+
+  :global(.swatch-go) {
+    background: var(--color-accent);
+  }
+
+  :global(.swatch-fg) {
+    background: var(--color-accent-2);
+  }
+
+  :global(.swatch-punt) {
+    background: #57a9b3;
+  }
+
+  :global(.error) {
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 40rem) {
+    .predictor {
+      padding: var(--space-4);
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      align-self: stretch;
+      text-align: center;
+    }
+  }
+</style>

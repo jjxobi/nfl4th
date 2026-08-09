@@ -20,7 +20,12 @@ def coach_tendency_report(
         weight = shrinkage_weight(n, k)
         baseline_for_coach = baseline_probs.loc[group.index]
 
-        row = {"coach": coach, "n_decisions": n, "shrinkage_weight": weight}
+        row = {
+            "coach": coach,
+            "n_decisions": n,
+            "shrinkage_weight": weight,
+            "last_season": int(group["season"].max()),
+        }
         for decision_class in DECISION_CLASSES:
             observed_rate = (group["decision"] == decision_class).mean()
             expected_rate = baseline_for_coach[decision_class].mean()

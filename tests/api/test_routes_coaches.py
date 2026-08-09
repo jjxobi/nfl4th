@@ -15,6 +15,7 @@ def test_list_coaches_returns_known_coaches_with_valid_rates():
     assert "coach" in first
     assert first["n_decisions"] > 0
     assert 0.0 <= first["shrinkage_weight"] <= 1.0
+    assert isinstance(first["last_season"], int)
 
 
 def test_get_coach_returns_full_profile_for_a_known_coach():
@@ -28,6 +29,7 @@ def test_get_coach_returns_full_profile_for_a_known_coach():
     assert "observed" in body["punt"]
     assert "expected" in body["punt"]
     assert "shrunk" in body["punt"]
+    assert isinstance(body["last_season"], int)
 
 
 def test_get_coach_returns_404_for_unknown_coach():

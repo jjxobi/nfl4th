@@ -12,6 +12,7 @@ def _fake_fetch(calls):
             {
                 "season": [s for s in seasons for _ in range(2)],
                 "week": [1, 2] * len(seasons),
+                "extra": ["x"] * (2 * len(seasons)),
             }
         )
 
@@ -46,3 +47,19 @@ def test_only_fetches_missing_seasons(tmp_path: Path):
     _load_cached_seasons([2020, 2021], "pbp", _fake_fetch(calls), tmp_path)
 
     assert calls == [[2021]]
+
+
+def test_columns_restricts_both_cached_and_freshly_fetched_reads(tmp_path: Path):
+    calls = []
+    _load_cached_seasons([2020], "pbp", _fake_fetch(calls), tmp_path, columns=["season", "week"])
+
+    cached_on_disk = pd.read_parquet(tmp_path / "pbp" / "2020.parquet")
+    assert "extra" in cached_on_disk.columns
+
+    calls.clear()
+    result = _load_cached_seasons(
+        [2020, 2021], "pbp", _fake_fetch(calls), tmp_path, columns=["season", "week"]
+    )
+
+    assert calls == [[2021]]
+    assert list(result.columns) == ["season", "week"]

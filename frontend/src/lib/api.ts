@@ -8,6 +8,7 @@ export interface CoachProfile {
   coach: string;
   n_decisions: number;
   shrinkage_weight: number;
+  last_season: number;
   punt: DecisionRates;
   field_goal: DecisionRates;
   go_for_it: DecisionRates;
@@ -48,6 +49,18 @@ export async function getCoaches(): Promise<CoachProfile[]> {
 export async function getCoach(name: string): Promise<CoachProfile> {
   const response = await fetch(`${API_URL}/coaches/${encodeURIComponent(name)}`);
   if (!response.ok) throw new Error(`Failed to load coach: ${response.status}`);
+  return response.json();
+}
+
+export interface HealthInfo {
+  name: string;
+  latest_season: number;
+  n_coaches: number;
+}
+
+export async function getHealth(): Promise<HealthInfo> {
+  const response = await fetch(`${API_URL}/`);
+  if (!response.ok) throw new Error(`Failed to load health info: ${response.status}`);
   return response.json();
 }
 

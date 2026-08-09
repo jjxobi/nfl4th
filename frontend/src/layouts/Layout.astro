@@ -41,8 +41,10 @@ const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWit
           </span>
         </a>
         <nav aria-label="Primary">
-          <a href="/" aria-current={isActive("/") ? "page" : undefined}>Predictor</a>
+          <a href="/" aria-current={isActive("/") ? "page" : undefined}>Home</a>
+          <a href="/predict" aria-current={isActive("/predict") ? "page" : undefined}>Predict</a>
           <a href="/coaches" aria-current={isActive("/coaches") ? "page" : undefined}>Coaches</a>
+          <a href="/about" aria-current={isActive("/about") ? "page" : undefined}>About</a>
         </nav>
       </div>
       <div class="hash-rule" aria-hidden="true"></div>

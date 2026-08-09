@@ -10,7 +10,7 @@ def test_shrinkage_weight_boundaries():
 
 
 def test_report_blends_toward_baseline_for_small_sample():
-    decisions = pd.DataFrame({"coach": ["Rookie"], "decision": ["go_for_it"]})
+    decisions = pd.DataFrame({"coach": ["Rookie"], "decision": ["go_for_it"], "season": [2024]})
     baseline_probs = pd.DataFrame(
         {"punt": [0.7], "field_goal": [0.2], "go_for_it": [0.1]}, index=decisions.index
     )
@@ -25,7 +25,9 @@ def test_report_blends_toward_baseline_for_small_sample():
 
 def test_report_converges_to_observed_for_large_sample():
     n = 200
-    decisions = pd.DataFrame({"coach": ["Veteran"] * n, "decision": ["go_for_it"] * n})
+    decisions = pd.DataFrame(
+        {"coach": ["Veteran"] * n, "decision": ["go_for_it"] * n, "season": [2024] * n}
+    )
     baseline_probs = pd.DataFrame(
         {"punt": [0.7] * n, "field_goal": [0.2] * n, "go_for_it": [0.1] * n}, index=decisions.index
     )
@@ -34,3 +36,21 @@ def test_report_converges_to_observed_for_large_sample():
 
     row = report.iloc[0]
     assert row["go_for_it_shrunk"] > 0.95
+
+
+def test_report_records_the_coachs_most_recent_season():
+    decisions = pd.DataFrame(
+        {
+            "coach": ["Multi Year", "Multi Year", "Multi Year"],
+            "decision": ["go_for_it", "punt", "field_goal"],
+            "season": [2020, 2022, 2021],
+        }
+    )
+    baseline_probs = pd.DataFrame(
+        {"punt": [0.7, 0.7, 0.7], "field_goal": [0.2, 0.2, 0.2], "go_for_it": [0.1, 0.1, 0.1]},
+        index=decisions.index,
+    )
+
+    report = coach_tendency_report(decisions, baseline_probs, k=10.0)
+
+    assert report.iloc[0]["last_season"] == 2022
