@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 
@@ -11,7 +12,7 @@ def test_ensemble_probs_averages_two_prediction_frames():
     baseline_probs = pd.DataFrame({"punt": [0.6], "field_goal": [0.3], "go_for_it": [0.1]})
     embedding_probs = pd.DataFrame({"punt": [0.4], "field_goal": [0.1], "go_for_it": [0.5]})
 
-    result = pipeline._ensemble_probs(baseline_probs, embedding_probs)
+    result = pipeline.ensemble_probs(baseline_probs, embedding_probs)
 
     assert result["punt"].iloc[0] == pytest.approx(0.5)
     assert result["field_goal"].iloc[0] == pytest.approx(0.2)
@@ -101,3 +102,29 @@ def test_run_saves_models_when_model_dir_is_given(monkeypatch, tmp_path):
     assert (tmp_path / "baseline_no_coach" / "model.json").exists()
     assert (tmp_path / "embedding" / "model.pt").exists()
     assert (tmp_path / "embedding" / "vocab.json").exists()
+
+
+def test_run_saves_report_and_metadata_when_model_dir_is_given(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline, "load_pbp", lambda seasons: _synthetic_pbp(seasons))
+    monkeypatch.setattr(
+        pipeline, "load_schedules", lambda seasons: _synthetic_schedules(seasons, cold_start_season=2022)
+    )
+
+    pipeline.run(
+        train_seasons=range(2020, 2021),
+        val_seasons=range(2021, 2022),
+        test_seasons=range(2022, 2023),
+        model_dir=tmp_path,
+    )
+
+    report_path = tmp_path / "coach_tendency_report.csv"
+    metadata_path = tmp_path / "metadata.json"
+    assert report_path.exists()
+    assert metadata_path.exists()
+
+    saved_report = pd.read_csv(report_path)
+    assert "coach" in saved_report.columns
+    assert set(saved_report["coach"]) == {"Coach A"}
+
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["latest_season"] == 2022

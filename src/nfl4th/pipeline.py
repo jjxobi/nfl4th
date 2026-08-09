@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -36,7 +37,7 @@ def _score(probs: pd.DataFrame, true_decisions: pd.Series) -> dict[str, float]:
     }
 
 
-def _ensemble_probs(baseline_probs: pd.DataFrame, embedding_probs: pd.DataFrame) -> pd.DataFrame:
+def ensemble_probs(baseline_probs: pd.DataFrame, embedding_probs: pd.DataFrame) -> pd.DataFrame:
     # Averaging the two models' predicted probabilities costs nothing extra
     # to train and, verified against real 2010-2025 data, reliably beats
     # either model alone on log loss.
@@ -49,11 +50,18 @@ def _print_model_comparison(baseline_model, embedding_model, vocab, val_df, test
             continue
         baseline_probs = predict_baseline(baseline_model, split_df)
         embedding_probs = predict_with_coldstart(embedding_model, vocab, split_df)
-        ensemble_probs = _ensemble_probs(baseline_probs, embedding_probs)
+        combined_probs = ensemble_probs(baseline_probs, embedding_probs)
 
         print(f"{split_name} baseline:  {_score(baseline_probs, split_df['decision'])}")
         print(f"{split_name} embedding: {_score(embedding_probs, split_df['decision'])}")
-        print(f"{split_name} ensemble:  {_score(ensemble_probs, split_df['decision'])}")
+        print(f"{split_name} ensemble:  {_score(combined_probs, split_df['decision'])}")
+
+
+def save_run_artifacts(report: pd.DataFrame, all_seasons: list[int], model_dir: Path) -> None:
+    model_dir.mkdir(parents=True, exist_ok=True)
+    report.to_csv(model_dir / "coach_tendency_report.csv", index=False)
+    metadata = {"latest_season": max(all_seasons)}
+    (model_dir / "metadata.json").write_text(json.dumps(metadata))
 
 
 def run(train_seasons: range, val_seasons: range, test_seasons: range, model_dir: Path | None = None):
@@ -68,18 +76,21 @@ def run(train_seasons: range, val_seasons: range, test_seasons: range, model_dir
     baseline_no_coach_model = train_baseline_no_coach(train_df)
     embedding_model, vocab = train_embedding_model(train_df)
 
-    if model_dir is not None:
-        save_baseline(baseline_model, model_dir / "baseline")
-        save_baseline(baseline_no_coach_model, model_dir / "baseline_no_coach")
-        save_embedding_model(embedding_model, vocab, model_dir / "embedding")
-
     _print_model_comparison(baseline_model, embedding_model, vocab, val_df, test_df)
 
     # The report's expected/baseline rate comes from the coach-free model, not
     # the coach-aware one, so a coach isn't shrunk toward a memorized version
     # of themselves.
     baseline_no_coach_train_probs = predict_baseline(baseline_no_coach_model, train_df)
-    return coach_tendency_report(train_df, baseline_no_coach_train_probs)
+    report = coach_tendency_report(train_df, baseline_no_coach_train_probs)
+
+    if model_dir is not None:
+        save_baseline(baseline_model, model_dir / "baseline")
+        save_baseline(baseline_no_coach_model, model_dir / "baseline_no_coach")
+        save_embedding_model(embedding_model, vocab, model_dir / "embedding")
+        save_run_artifacts(report, all_seasons, model_dir)
+
+    return report
 
 
 def main() -> None:
