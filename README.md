@@ -25,8 +25,9 @@ and that gap is part of the point.
    coach's actual first game as a head coach, so a coach whose tenure
    started earlier will show an artificially low count in their early
    loaded seasons.
-3. **Modeling**: trains two models side by side on a time-based split
-   (train on earlier seasons, test on the most recent ones, no leakage):
+3. **Modeling**: trains two tendency models side by side on a time-based
+   split (train on earlier seasons, test on the most recent ones, no
+   leakage):
    - An XGBoost baseline with coach as a categorical feature.
    - A PyTorch model with a learned per-coach embedding, its situational
      features normalized (raw scale varies wildly, season is ~2010-2024,
@@ -34,6 +35,12 @@ and that gap is part of the point.
      batches rather than one full batch step per epoch.
    - Averaging the two models' predicted probabilities (a simple ensemble,
      no extra training) beats either model alone, see Results below.
+   - A separate conversion model, trained on situation alone with no coach
+     feature, predicts the odds a 4th down attempt succeeds if a team goes
+     for it. Whether a conversion works is a property of the down, distance,
+     and field position, not of who called the play, so this model is
+     deliberately situation-only rather than coach-specific like the two
+     above.
 4. **Cold start**: a coach's first 4th down decision as a head coach comes
    with zero track record, regardless of background. The two models handle
    this differently. The XGBoost model treats an unseen coach as a missing
@@ -48,6 +55,11 @@ and that gap is part of the point.
    (`weight = n / (n + k)`), so a coach's early decisions are shown
    appropriately regressed toward the baseline rather than as noisy
    extremes.
+6. **Findings**: aggregates situational go-for-it splits by distance,
+   conversion odds by distance from the conversion model, the league-wide
+   go-for-it rate trend by season, and the top coaches by go-for-it rate
+   within each distance bucket (minimum sample size applied) into
+   `findings.json`, which powers the findings page.
 
 ## Results
 
@@ -104,16 +116,30 @@ fully offline in a few seconds.
 ```
 
 This downloads and caches 2010-2024 play by play and schedule data on first
-run (a few hundred MB, several minutes), then trains both models and prints
-a coach tendency report. Pass `--model-dir models` to also save both trained
-models to disk (`baseline/`, `baseline_no_coach/`, `embedding/`) so a later
-run, or a future web app, can load them instead of retraining from scratch.
+run (a few hundred MB, several minutes), then trains the models and prints
+a coach tendency report. Pass `--model-dir models` to also save the trained
+models to disk (`baseline/`, `baseline_no_coach/`, `embedding/`,
+`conversion/`) along with `findings.json`, so a later run, or a future web
+app, can load them instead of retraining or recomputing from scratch.
 
 To reproduce the Results numbers above (train 2010-2023, test on 2025):
 
 ```bash
 .venv/Scripts/python scripts/run_pipeline.py --train-start 2010 --train-end 2024 --val-end 2025 --test-end 2026
 ```
+
+To regenerate the actual artifacts committed in `api/models/` (every
+season 2010-2025 used for training, matching the real data, no held-out
+val/test split, the same shape the weekly retrain workflow produces):
+
+```bash
+.venv/Scripts/python scripts/run_pipeline.py --train-start 2010 --train-end 2026 --val-end 2026 --test-end 2026 --model-dir api/models
+```
+
+Passing no season flags at all uses `run_pipeline.py`'s defaults
+(`--train-end 2021`), which trains on a much smaller slice of seasons and
+would produce a `findings.json` with a truncated league trend, not the full
+2010-2025 span the committed artifacts actually have.
 
 ## Backend API
 
@@ -134,15 +160,20 @@ Endpoints:
 - `GET /coaches` - every coach's tendency profile
 - `GET /coaches/{name}` - one coach's profile
 - `POST /predict` - given a situation and a coach, returns the model's
-  predicted decision, that coach's career average, and a coach-agnostic
-  league baseline
+  predicted decision, that coach's career average, a coach-agnostic league
+  baseline, and a `conversion_probability` for that situation from the
+  situation-only conversion model
+- `GET /findings` - pre-computed situational splits, conversion odds by
+  distance, league-wide trend by season, and the coach-bucket leaderboard
+  that power the findings page
 
 Interactive docs are available at `/docs` once the server is running.
 
 ## Frontend
 
 A static Astro site in `frontend/` consumes the backend API: a situation
-predictor and a coach tendency browser. Requires Node >= 22.12.
+predictor, a coach tendency browser, and a findings page of league-wide
+patterns pulled from the data. Requires Node >= 22.12.
 
 ```bash
 cd frontend

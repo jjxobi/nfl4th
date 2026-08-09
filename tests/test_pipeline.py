@@ -49,6 +49,11 @@ def _synthetic_pbp(seasons: list[int]) -> pd.DataFrame:
                         "ydstogo": 2, "yardline_100": 40, "score_differential": 0,
                         "game_seconds_remaining": 1800, "qtr": 2,
                         "posteam_timeouts_remaining": 3, "defteam_timeouts_remaining": 3,
+                        # Varies by play_id (not a constant) so the go-for-it
+                        # subset used to train the conversion model contains
+                        # both classes; xgboost's binary objective errors out
+                        # on a single-class target.
+                        "fourth_down_converted": play_id % 2,
                     }
                 )
                 play_id += 1
@@ -128,6 +133,30 @@ def test_run_saves_report_and_metadata_when_model_dir_is_given(monkeypatch, tmp_
 
     metadata = json.loads(metadata_path.read_text())
     assert metadata["latest_season"] == 2022
+
+
+def test_run_saves_findings_and_conversion_model_when_model_dir_is_given(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline, "load_pbp", lambda seasons: _synthetic_pbp(seasons))
+    monkeypatch.setattr(
+        pipeline, "load_schedules", lambda seasons: _synthetic_schedules(seasons, cold_start_season=2022)
+    )
+
+    pipeline.run(
+        train_seasons=range(2020, 2021),
+        val_seasons=range(2021, 2022),
+        test_seasons=range(2022, 2023),
+        model_dir=tmp_path,
+    )
+
+    assert (tmp_path / "conversion" / "model.json").exists()
+
+    findings_path = tmp_path / "findings.json"
+    assert findings_path.exists()
+    findings = json.loads(findings_path.read_text())
+    assert "situational_splits" in findings
+    assert "coach_bucket_leaderboard" in findings
+    assert "league_trend" in findings
+    assert "conversion_by_distance" in findings
 
 
 def test_evaluate_returns_accuracy_and_log_loss(monkeypatch):

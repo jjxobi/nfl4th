@@ -27,6 +27,8 @@ def test_predict_returns_probabilities_for_a_known_coach():
         probs = body[key]
         total = probs["punt"] + probs["field_goal"] + probs["go_for_it"]
         assert abs(total - 1.0) < 0.01
+    assert "conversion_probability" in body
+    assert 0.0 <= body["conversion_probability"] <= 1.0
 
 
 def test_predict_returns_404_for_unknown_coach():

@@ -133,6 +133,20 @@ import Layout from "../layouts/Layout.astro";
     `;
   }
 
+  function renderConversionCard(probability: number): string {
+    const pct = probability * 100;
+    return `
+      <article class="result-card conversion-card">
+        <div class="result-card-head">
+          <h3>If they go for it</h3>
+          <span class="result-tag">Conversion odds</span>
+        </div>
+        <p class="note">Chance a go-for-it attempt succeeds here, regardless of which decision is predicted above.</p>
+        <p class="conversion-value">${pct.toFixed(1)}%</p>
+      </article>
+    `;
+  }
+
   const form = document.getElementById("predict-form") as HTMLFormElement;
   const submitButton = document.getElementById("predict-submit") as HTMLButtonElement;
   const resultSection = document.getElementById("result-section") as HTMLElement;
@@ -167,6 +181,7 @@ import Layout from "../layouts/Layout.astro";
         ${renderProbabilities("Model prediction", "This situation", "For this exact situation.", response.predicted, true)}
         ${renderProbabilities("This coach's career average", "Career-wide", "Across every 4th down they've faced, not specific to this situation.", response.coach_career_average, false)}
         ${renderProbabilities("League baseline", "This situation", "A coach-agnostic model, for this exact situation.", response.league_baseline, false)}
+        ${renderConversionCard(response.conversion_probability)}
       `;
       resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
@@ -351,6 +366,18 @@ import Layout from "../layouts/Layout.astro";
     background: var(--color-surface-raised);
     border-color: var(--color-accent);
     box-shadow: 0 0 0 1px rgba(255, 106, 44, 0.15), 0 12px 30px -18px rgba(255, 106, 44, 0.5);
+  }
+
+  :global(.conversion-card) {
+    grid-column: 1 / -1;
+  }
+
+  :global(.conversion-value) {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--color-accent-2);
+    margin: 0;
   }
 
   :global(#result) {

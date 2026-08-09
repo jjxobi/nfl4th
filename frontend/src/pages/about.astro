@@ -31,6 +31,15 @@ import Layout from "../layouts/Layout.astro";
       predicted tendency leans on how similar coaches have called similar situations, then
       shifts toward that coach's own real behavior as more of their decisions come in.
     </p>
+    <p>
+      A third model answers a different question: if a team does go for it, how likely is the
+      attempt to actually work? That model only looks at the situation, down and distance, field
+      position, score, time, and has no idea which coach made the call, unlike the two tendency
+      models above. That's on purpose: whether a 4th down conversion succeeds is a property of
+      the situation, not of who's calling the play, so giving it a coach feature would only add
+      noise. Its estimate is what shows up next to a prediction on the predictor page, and it's
+      what drives the conversion-odds chart on <a href="/findings">Findings</a>.
+    </p>
 
     <h2>The data</h2>
     <p>

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.loader import LoadedModels
 from api.routes_coaches import register_coach_routes
+from api.routes_findings import register_findings_routes
 from api.routes_predict import register_predict_routes
 
 app = FastAPI(title="NFL 4th Down Coach Tendency API")
@@ -33,4 +34,5 @@ def health() -> dict:
 
 register_coach_routes(router, loaded)
 register_predict_routes(router, loaded)
+register_findings_routes(router, loaded)
 app.include_router(router)

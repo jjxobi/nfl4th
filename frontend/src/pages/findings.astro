@@ -1,0 +1,352 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Findings | NFL 4th Down Predictor" description="Superlative coach leaderboards, situational go-for-it splits, conversion odds by distance, and how league-wide aggressiveness has changed since 2010.">
+  <section class="intro">
+    <p class="eyebrow">The findings</p>
+    <h1>What the data actually shows</h1>
+    <p class="lede">
+      Real patterns pulled from every 4th down decision since 2010, not just a lookup tool.
+    </p>
+  </section>
+
+  <section class="findings-section">
+    <p class="eyebrow">Superlatives</p>
+    <p class="section-note">Minimum 100 career decisions to qualify.</p>
+    <div id="superlatives" class="superlative-grid">
+      <p class="loading-note">Loading&hellip;</p>
+    </div>
+  </section>
+
+  <section class="findings-section">
+    <p class="eyebrow">Situational splits</p>
+    <p class="section-note">How often the league goes for it, by distance to go.</p>
+    <div id="splits-chart" class="bar-chart"></div>
+  </section>
+
+  <section class="findings-section">
+    <p class="eyebrow">Conversion odds</p>
+    <p class="section-note">
+      If a team goes for it, how often it actually works, by distance to go. These are the
+      model's estimates for one typical situation with only distance varying, not raw historical
+      rates for that exact combination.
+    </p>
+    <div id="conversion-chart" class="bar-chart"></div>
+  </section>
+
+  <section class="findings-section">
+    <p class="eyebrow">League trend</p>
+    <p class="section-note">League-wide go-for-it rate by season.</p>
+    <div id="trend-chart" class="trend-chart"></div>
+  </section>
+
+  <section class="findings-section">
+    <p class="eyebrow">By coach, by situation</p>
+    <p class="section-note">The most aggressive coaches within each distance bucket, minimum sample size applied.</p>
+    <div id="coach-leaderboard" class="coach-leaderboard">
+      <p class="loading-note">Loading&hellip;</p>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { getCoaches, getFindings, type CoachProfile, type FindingsData } from "../lib/api";
+
+  const MIN_SUPERLATIVE_DECISIONS = 100;
+
+  function renderSuperlatives(coaches: CoachProfile[]): string {
+    const eligible = coaches.filter((coach) => coach.n_decisions >= MIN_SUPERLATIVE_DECISIONS);
+    const mostAggressive = [...eligible].sort((a, b) => b.go_for_it.shrunk - a.go_for_it.shrunk)[0];
+    const mostConservative = [...eligible].sort((a, b) => a.go_for_it.shrunk - b.go_for_it.shrunk)[0];
+    const biggestGap = [...eligible].sort(
+      (a, b) =>
+        Math.abs(b.go_for_it.observed - b.go_for_it.expected) - Math.abs(a.go_for_it.observed - a.go_for_it.expected)
+    )[0];
+
+    const card = (label: string, coach: CoachProfile, value: string) => `
+      <div class="superlative-card">
+        <span class="superlative-label">${label}</span>
+        <span class="superlative-coach">${coach.coach}</span>
+        <span class="superlative-value">${value} (${coach.n_decisions} decisions)</span>
+      </div>
+    `;
+
+    return (
+      card("Most aggressive", mostAggressive, `${(mostAggressive.go_for_it.shrunk * 100).toFixed(1)}% go-for-it rate`) +
+      card("Most conservative", mostConservative, `${(mostConservative.go_for_it.shrunk * 100).toFixed(1)}% go-for-it rate`) +
+      card(
+        "Biggest outlier",
+        biggestGap,
+        `${((biggestGap.go_for_it.observed - biggestGap.go_for_it.expected) * 100).toFixed(1)} points from expected`
+      )
+    );
+  }
+
+  function renderBarChart(rows: { distance_bucket: string; value: number }[]): string {
+    return rows
+      .map(
+        (row) => `
+        <div class="bar-row">
+          <span class="bar-label">${row.distance_bucket}</span>
+          <div class="bar-track">
+            <span class="bar-fill" style="width: ${row.value * 100}%"></span>
+          </div>
+          <span class="bar-value">${(row.value * 100).toFixed(1)}%</span>
+        </div>
+      `
+      )
+      .join("");
+  }
+
+  function renderTrendChart(points: { season: number; go_for_it_rate: number }[]): string {
+    if (points.length === 0) return "";
+    const width = 600;
+    const height = 200;
+    const padding = 24;
+    const minSeason = points[0].season;
+    const maxSeason = points[points.length - 1].season;
+    const seasonSpan = Math.max(maxSeason - minSeason, 1);
+
+    const rates = points.map((point) => point.go_for_it_rate);
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    // Fixed 0-1 axis flattens the real ~12-24% range into a sliver near the
+    // bottom edge, so scale to the actual data with a little headroom on
+    // each side instead.
+    const axisMin = minRate * 0.85;
+    const axisMax = maxRate * 1.15;
+    const rateSpan = Math.max(axisMax - axisMin, 0.001);
+
+    const coords = points.map((point) => {
+      const x = padding + ((point.season - minSeason) / seasonSpan) * (width - padding * 2);
+      const y = height - padding - ((point.go_for_it_rate - axisMin) / rateSpan) * (height - padding * 2);
+      return `${x},${y}`;
+    });
+
+    return `
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="League go for it rate by season, from ${minSeason} to ${maxSeason}, ranging from ${(minRate * 100).toFixed(1)}% to ${(maxRate * 100).toFixed(1)}%">
+        <polyline points="${coords.join(" ")}" fill="none" stroke="var(--color-accent)" stroke-width="2" />
+      </svg>
+      <div class="trend-labels">
+        <span>${minSeason}</span>
+        <span>${maxSeason}</span>
+      </div>
+      <div class="trend-labels trend-labels-y">
+        <span>Low: ${(minRate * 100).toFixed(1)}%</span>
+        <span>High: ${(maxRate * 100).toFixed(1)}%</span>
+      </div>
+    `;
+  }
+
+  const BUCKET_ORDER = ["1", "2", "3", "4-6", "7-10", "11+"];
+
+  function renderCoachLeaderboard(entries: FindingsData["coach_bucket_leaderboard"]): string {
+    const buckets = [...new Set(entries.map((entry) => entry.distance_bucket))].sort(
+      (a, b) => BUCKET_ORDER.indexOf(a) - BUCKET_ORDER.indexOf(b)
+    );
+    return buckets
+      .map((bucket) => {
+        const top = entries
+          .filter((entry) => entry.distance_bucket === bucket)
+          .slice(0, 3);
+        if (top.length === 0) return "";
+        const rows = top
+          .map(
+            (entry) => `
+            <li>${entry.coach} &middot; ${(entry.go_for_it_rate * 100).toFixed(1)}% (${entry.n_decisions} decisions)</li>
+          `
+          )
+          .join("");
+        return `
+          <div class="leaderboard-bucket">
+            <h3>${bucket} yards to go</h3>
+            <ul>${rows}</ul>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  Promise.all([getCoaches(), getFindings()])
+    .then(([coaches, findings]) => {
+      document.getElementById("superlatives")!.innerHTML = renderSuperlatives(coaches);
+      document.getElementById("splits-chart")!.innerHTML = renderBarChart(
+        findings.situational_splits.map((split) => ({ distance_bucket: split.distance_bucket, value: split.go_for_it_rate }))
+      );
+      document.getElementById("conversion-chart")!.innerHTML = renderBarChart(
+        findings.conversion_by_distance.map((entry) => ({
+          distance_bucket: entry.distance_bucket,
+          value: entry.conversion_probability,
+        }))
+      );
+      document.getElementById("trend-chart")!.innerHTML = renderTrendChart(findings.league_trend);
+      document.getElementById("coach-leaderboard")!.innerHTML = renderCoachLeaderboard(findings.coach_bucket_leaderboard);
+    })
+    .catch((error) => {
+      const message = `<p class="error">Could not load findings: ${error instanceof Error ? error.message : "unknown error"}</p>`;
+      const containerIds = ["superlatives", "splits-chart", "conversion-chart", "trend-chart", "coach-leaderboard"];
+      for (const id of containerIds) {
+        document.getElementById(id)!.innerHTML = message;
+      }
+    });
+</script>
+
+<style>
+  .intro {
+    max-width: 52rem;
+    margin-bottom: var(--space-5);
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 var(--space-2);
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    max-width: 46rem;
+  }
+
+  .findings-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .section-note {
+    font-size: 0.9rem;
+    margin-bottom: var(--space-3);
+  }
+
+  .loading-note {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-text-dim);
+  }
+
+  .superlative-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .superlative-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-line);
+    border-radius: 4px;
+    padding: var(--space-3);
+  }
+
+  .superlative-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+
+  .superlative-coach {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .superlative-value {
+    font-size: 0.85rem;
+    color: var(--color-text-dim);
+  }
+
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: 4rem 1fr 4rem;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .bar-label {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-text-dim);
+  }
+
+  .bar-track {
+    height: 0.9rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--color-accent);
+  }
+
+  .bar-value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: right;
+  }
+
+  .trend-chart svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .trend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-text-dim);
+    margin-top: var(--space-2);
+  }
+
+  .trend-labels-y {
+    margin-top: 0.35rem;
+  }
+
+  .coach-leaderboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .leaderboard-bucket h3 {
+    font-size: 0.95rem;
+    margin-bottom: var(--space-2);
+  }
+
+  .leaderboard-bucket ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .error {
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+  }
+</style>

@@ -7,15 +7,32 @@ from pathlib import Path
 import pandas as pd
 from sklearn.metrics import accuracy_score, log_loss
 
+from nfl4th.analysis.findings import (
+    DISTANCE_BUCKETS,
+    coach_bucket_leaderboard,
+    league_trend_over_time,
+    situational_splits,
+)
 from nfl4th.analysis.tendencies import coach_tendency_report
 from nfl4th.data.ingest import load_pbp, load_schedules
-from nfl4th.features.build_features import DECISION_CLASSES, build_feature_table
+from nfl4th.features.build_features import (
+    DECISION_CLASSES,
+    build_conversion_training_data,
+    build_feature_table,
+)
 from nfl4th.features.split import time_based_split
 from nfl4th.models.baseline import (
     predict_baseline,
     save_baseline,
     train_baseline,
     train_baseline_no_coach,
+)
+from nfl4th.models.conversion import (
+    CONVERSION_FEATURES,  # noqa: F401 -- re-exported for symmetry with the other model imports
+    load_conversion_model,  # noqa: F401 -- re-exported for symmetry; nothing here loads a model
+    predict_conversion,
+    save_conversion_model,
+    train_conversion_model,
 )
 from nfl4th.models.embedding_model import (
     predict_with_coldstart,
@@ -64,6 +81,41 @@ def save_run_artifacts(report: pd.DataFrame, all_seasons: list[int], model_dir: 
     (model_dir / "metadata.json").write_text(json.dumps(metadata))
 
 
+def _conversion_grid(conversion_model) -> list[dict]:
+    representative_situation = {
+        "yardline_100": 50,
+        "score_differential": 0,
+        "game_seconds_remaining": 1800,
+        "qtr": 2,
+        "posteam_timeouts_remaining": 3,
+        "defteam_timeouts_remaining": 3,
+        "is_home": 1,
+    }
+    # Midpoint values are still hardcoded (they're not derivable from the
+    # bucket definition alone), but the set of bucket labels comes from the
+    # same DISTANCE_BUCKETS used by findings.py, so the two can't drift apart.
+    bucket_midpoint_values = {"1": 1, "2": 2, "3": 3, "4-6": 5, "7-10": 8, "11+": 15}
+    bucket_midpoints = {label: bucket_midpoint_values[label] for _, _, label in DISTANCE_BUCKETS}
+
+    rows = []
+    for label, ydstogo in bucket_midpoints.items():
+        situation = pd.DataFrame([{**representative_situation, "ydstogo": ydstogo}])
+        probability = predict_conversion(conversion_model, situation).iloc[0]
+        rows.append({"distance_bucket": label, "conversion_probability": float(probability)})
+    return rows
+
+
+def save_findings_artifacts(train_df: pd.DataFrame, conversion_model, model_dir: Path) -> None:
+    model_dir.mkdir(parents=True, exist_ok=True)
+    findings = {
+        "situational_splits": situational_splits(train_df).to_dict(orient="records"),
+        "coach_bucket_leaderboard": coach_bucket_leaderboard(train_df).to_dict(orient="records"),
+        "league_trend": league_trend_over_time(train_df).to_dict(orient="records"),
+        "conversion_by_distance": _conversion_grid(conversion_model),
+    }
+    (model_dir / "findings.json").write_text(json.dumps(findings))
+
+
 def evaluate(train_seasons: range, test_seasons: range) -> dict[str, float]:
     all_seasons = list(train_seasons) + list(test_seasons)
     pbp = load_pbp(all_seasons)
@@ -102,11 +154,18 @@ def run(train_seasons: range, val_seasons: range, test_seasons: range, model_dir
     baseline_no_coach_train_probs = predict_baseline(baseline_no_coach_model, train_df)
     report = coach_tendency_report(train_df, baseline_no_coach_train_probs)
 
+    conversion_train_df, _, _ = time_based_split(
+        build_conversion_training_data(pbp), train_seasons, range(0), range(0)
+    )
+    conversion_model = train_conversion_model(conversion_train_df)
+
     if model_dir is not None:
         save_baseline(baseline_model, model_dir / "baseline")
         save_baseline(baseline_no_coach_model, model_dir / "baseline_no_coach")
         save_embedding_model(embedding_model, vocab, model_dir / "embedding")
         save_run_artifacts(report, all_seasons, model_dir)
+        save_conversion_model(conversion_model, model_dir / "conversion")
+        save_findings_artifacts(train_df, conversion_model, model_dir)
 
     return report
 

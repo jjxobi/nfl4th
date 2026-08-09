@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from api.loader import LoadedModels
 from api.schemas import DecisionProbabilities, PredictResponse, SituationRequest
 from nfl4th.models.baseline import predict_baseline
+from nfl4th.models.conversion import predict_conversion
 from nfl4th.models.embedding_model import predict_with_coldstart
 from nfl4th.pipeline import ensemble_probs
 
@@ -52,6 +53,7 @@ def register_predict_routes(router: APIRouter, loaded: LoadedModels) -> None:
         combined_probs = ensemble_probs(baseline_probs, embedding_probs)
 
         league_probs = predict_baseline(loaded.baseline_no_coach_model, situation)
+        conversion_probability = predict_conversion(loaded.conversion_model, situation).iloc[0]
 
         coach_career_average = DecisionProbabilities(
             punt=float(coach_row["punt_shrunk"]),
@@ -63,4 +65,5 @@ def register_predict_routes(router: APIRouter, loaded: LoadedModels) -> None:
             predicted=_probs_to_schema(combined_probs),
             coach_career_average=coach_career_average,
             league_baseline=_probs_to_schema(league_probs),
+            conversion_probability=float(conversion_probability),
         )

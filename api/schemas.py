@@ -48,3 +48,38 @@ class PredictResponse(BaseModel):
     league_baseline: DecisionProbabilities = Field(
         description="Predicted probabilities for this exact situation, ignoring which coach is calling it"
     )
+    conversion_probability: float = Field(
+        description="If a go-for-it attempt is made in this exact situation, the model's estimate of the "
+        "chance it succeeds. Not conditioned on the predicted decision actually being go-for-it."
+    )
+
+
+class SituationalSplit(BaseModel):
+    distance_bucket: str
+    n_decisions: int
+    go_for_it_rate: float
+
+
+class CoachBucketEntry(BaseModel):
+    coach: str
+    distance_bucket: str
+    n_decisions: int
+    go_for_it_rate: float
+
+
+class LeagueTrendPoint(BaseModel):
+    season: int
+    n_decisions: int
+    go_for_it_rate: float
+
+
+class ConversionByDistance(BaseModel):
+    distance_bucket: str
+    conversion_probability: float
+
+
+class FindingsResponse(BaseModel):
+    situational_splits: list[SituationalSplit]
+    coach_bucket_leaderboard: list[CoachBucketEntry]
+    league_trend: list[LeagueTrendPoint]
+    conversion_by_distance: list[ConversionByDistance]

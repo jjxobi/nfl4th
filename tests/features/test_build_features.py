@@ -5,6 +5,7 @@ from nfl4th.features.build_features import (
     SITUATIONAL_FEATURES,
     add_career_decision_count,
     attach_coach,
+    build_conversion_training_data,
     build_feature_table,
     filter_fourth_down_decisions,
 )
@@ -156,3 +157,51 @@ def test_build_feature_table_end_to_end():
     expected_columns = ["game_id", "coach", "decision"] + SITUATIONAL_FEATURES
     assert list(result.columns) == expected_columns
     assert len(result) == 2
+
+
+def test_build_conversion_training_data_keeps_only_go_for_it_attempts():
+    pbp = pd.DataFrame(
+        {
+            "down": [4, 4, 4],
+            "penalty": [0, 0, 0],
+            "play_type": ["run", "punt", "pass"],
+            "season": [2024, 2024, 2024],
+            "posteam": ["ARI", "ARI", "ARI"],
+            "home_team": ["WAS", "WAS", "WAS"],
+            "ydstogo": [2, 9, 1],
+            "yardline_100": [40, 60, 30],
+            "score_differential": [0, 0, 0],
+            "game_seconds_remaining": [1800, 1800, 1800],
+            "qtr": [2, 2, 2],
+            "posteam_timeouts_remaining": [3, 3, 3],
+            "defteam_timeouts_remaining": [3, 3, 3],
+            "fourth_down_converted": [1, 0, 0],
+        }
+    )
+
+    result = build_conversion_training_data(pbp)
+
+    assert len(result) == 2
+    assert set(result["converted"]) == {1, 0}
+    assert list(result[result["ydstogo"] == 2]["converted"]) == [1]
+    assert list(result[result["ydstogo"] == 1]["converted"]) == [0]
+
+
+def test_build_conversion_training_data_computes_is_home():
+    pbp = pd.DataFrame(
+        [
+            _situational_row(
+                posteam="ARI", home_team="WAS", away_team="ARI",
+                play_type="run", play_id=1, fourth_down_converted=1,
+            ),
+            _situational_row(
+                posteam="WAS", home_team="WAS", away_team="ARI",
+                play_type="pass", play_id=2, fourth_down_converted=0,
+            ),
+        ]
+    )
+
+    result = build_conversion_training_data(pbp)
+
+    assert list(result[result["posteam"] == "ARI"]["is_home"]) == [0]
+    assert list(result[result["posteam"] == "WAS"]["is_home"]) == [1]

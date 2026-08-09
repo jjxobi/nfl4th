@@ -24,6 +24,7 @@ export interface PredictResponse {
   predicted: DecisionProbabilities;
   coach_career_average: DecisionProbabilities;
   league_baseline: DecisionProbabilities;
+  conversion_probability: number;
 }
 
 export interface SituationInput {
@@ -71,5 +72,42 @@ export async function predict(situation: SituationInput): Promise<PredictRespons
     body: JSON.stringify(situation),
   });
   if (!response.ok) throw new Error(`Prediction failed: ${response.status}`);
+  return response.json();
+}
+
+export interface SituationalSplit {
+  distance_bucket: string;
+  n_decisions: number;
+  go_for_it_rate: number;
+}
+
+export interface CoachBucketEntry {
+  coach: string;
+  distance_bucket: string;
+  n_decisions: number;
+  go_for_it_rate: number;
+}
+
+export interface LeagueTrendPoint {
+  season: number;
+  n_decisions: number;
+  go_for_it_rate: number;
+}
+
+export interface ConversionByDistance {
+  distance_bucket: string;
+  conversion_probability: number;
+}
+
+export interface FindingsData {
+  situational_splits: SituationalSplit[];
+  coach_bucket_leaderboard: CoachBucketEntry[];
+  league_trend: LeagueTrendPoint[];
+  conversion_by_distance: ConversionByDistance[];
+}
+
+export async function getFindings(): Promise<FindingsData> {
+  const response = await fetch(`${API_URL}/findings`);
+  if (!response.ok) throw new Error(`Failed to load findings: ${response.status}`);
   return response.json();
 }

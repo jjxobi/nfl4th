@@ -30,6 +30,7 @@ PBP_COLUMNS = [
     "qtr",
     "posteam_timeouts_remaining",
     "defteam_timeouts_remaining",
+    "fourth_down_converted",
 ]
 
 

@@ -1,5 +1,7 @@
+import json
 import sys
 from datetime import date
+from itertools import pairwise
 from pathlib import Path
 
 from nfl4th.data.ingest import load_pbp
@@ -73,6 +75,29 @@ def main() -> None:
             f"Season {latest_season} has only {latest_season_decisions} fourth-down decisions "
             f"in the data actually used for training. Its play-by-play may not be published "
             f"yet, or the fetch was silently truncated. Not trusting these artifacts."
+        )
+        sys.exit(1)
+
+    # Neither check above touches the conversion model or the findings
+    # aggregations at all, so a corrupted conversion model or a broken
+    # findings computation could still slip through. Check two cheap, strong
+    # invariants on the freshly written findings.json instead of re-deriving
+    # a full accuracy metric for it.
+    findings = json.loads((MODEL_DIR / "findings.json").read_text())
+
+    conversion_rates = [row["conversion_probability"] for row in findings["conversion_by_distance"]]
+    if any(later > earlier for earlier, later in pairwise(conversion_rates)):
+        print(
+            f"Sanity check failed: conversion_by_distance is not monotonically "
+            f"non-increasing by distance ({conversion_rates}). Not trusting these artifacts."
+        )
+        sys.exit(1)
+
+    league_trend = findings["league_trend"]
+    if not league_trend or league_trend[-1]["season"] != latest_season:
+        print(
+            f"Sanity check failed: league_trend is empty or its last season doesn't "
+            f"match this run's latest_season ({latest_season}). Not trusting these artifacts."
         )
         sys.exit(1)
 

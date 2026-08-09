@@ -58,3 +58,11 @@ def build_feature_table(pbp: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFr
     with_experience = add_career_decision_count(with_coach)
     output_columns = ["game_id", "coach", "decision"] + SITUATIONAL_FEATURES
     return with_experience[output_columns].reset_index(drop=True)
+
+
+def build_conversion_training_data(pbp: pd.DataFrame) -> pd.DataFrame:
+    decisions = filter_fourth_down_decisions(pbp)
+    go_for_it = decisions[decisions["decision"] == "go_for_it"].copy()
+    go_for_it["converted"] = go_for_it["fourth_down_converted"].astype(int)
+    go_for_it["is_home"] = (go_for_it["posteam"] == go_for_it["home_team"]).astype(int)
+    return go_for_it
