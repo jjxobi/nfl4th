@@ -64,6 +64,24 @@ def save_run_artifacts(report: pd.DataFrame, all_seasons: list[int], model_dir: 
     (model_dir / "metadata.json").write_text(json.dumps(metadata))
 
 
+def evaluate(train_seasons: range, test_seasons: range) -> dict[str, float]:
+    all_seasons = list(train_seasons) + list(test_seasons)
+    pbp = load_pbp(all_seasons)
+    schedules = load_schedules(all_seasons)
+    features = build_feature_table(pbp, schedules)
+
+    train_df, _, test_df = time_based_split(features, train_seasons, range(0), test_seasons)
+
+    baseline_model = train_baseline(train_df)
+    embedding_model, vocab = train_embedding_model(train_df)
+
+    baseline_probs = predict_baseline(baseline_model, test_df)
+    embedding_probs = predict_with_coldstart(embedding_model, vocab, test_df)
+    combined_probs = ensemble_probs(baseline_probs, embedding_probs)
+
+    return _score(combined_probs, test_df["decision"])
+
+
 def run(train_seasons: range, val_seasons: range, test_seasons: range, model_dir: Path | None = None):
     all_seasons = list(train_seasons) + list(val_seasons) + list(test_seasons)
     pbp = load_pbp(all_seasons)

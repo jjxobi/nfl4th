@@ -178,9 +178,18 @@ To actually deploy:
 (`https://4thdown.example.com`) so Open Graph tags resolve to absolute URLs.
 Update it to the real subdomain once DNS is set up.
 
+Model freshness is automatic: `.github/workflows/retrain.yml` runs every
+Tuesday, retrains on all available seasons, and only commits the refreshed
+`api/models/` if a sanity check against a fixed historical holdout still
+clears a reasonable accuracy floor. A passing run's commit lands on `master`
+and both Render and Netlify redeploy on push, so no manual step is needed to
+keep coach tendencies current through the season.
+
 ## What's next
 
-The next planned phase is automated weekly retraining: a scheduled job that
-pulls the latest nflverse data as each week's games complete, retrains both
-models, and refreshes the served artifacts in `api/models/` without any
-manual intervention.
+Phase 2 is complete: backend API, frontend, deployment, and automated weekly
+retraining are all built and described above. Nothing further is currently
+planned. Deliberately out of scope for now: user accounts or saved
+comparisons, a win-probability-optimal decision model shown alongside the
+tendency prediction, and historical charts of how a coach's aggression has
+trended over their career.

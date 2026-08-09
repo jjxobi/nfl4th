@@ -128,3 +128,15 @@ def test_run_saves_report_and_metadata_when_model_dir_is_given(monkeypatch, tmp_
 
     metadata = json.loads(metadata_path.read_text())
     assert metadata["latest_season"] == 2022
+
+
+def test_evaluate_returns_accuracy_and_log_loss(monkeypatch):
+    monkeypatch.setattr(pipeline, "load_pbp", lambda seasons: _synthetic_pbp(seasons))
+    monkeypatch.setattr(
+        pipeline, "load_schedules", lambda seasons: _synthetic_schedules(seasons)
+    )
+
+    metrics = pipeline.evaluate(train_seasons=range(2020, 2021), test_seasons=range(2021, 2022))
+
+    assert set(metrics.keys()) == {"accuracy", "log_loss"}
+    assert 0.0 <= metrics["accuracy"] <= 1.0
