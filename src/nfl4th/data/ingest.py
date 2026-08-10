@@ -31,6 +31,8 @@ PBP_COLUMNS = [
     "posteam_timeouts_remaining",
     "defteam_timeouts_remaining",
     "fourth_down_converted",
+    "wpa",
+    "fixed_drive_result",
 ]
 
 

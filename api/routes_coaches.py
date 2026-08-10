@@ -13,6 +13,9 @@ def _coach_profile_from_row(coach: str, row: pd.Series) -> CoachProfile:
         n_decisions=int(row["n_decisions"]),
         shrinkage_weight=float(row["shrinkage_weight"]),
         last_season=int(row["last_season"]),
+        n_go_for_it_attempts=int(row["n_go_for_it_attempts"]),
+        n_conversions=int(row["n_conversions"]),
+        conversion_rate=float(row["conversion_rate"]),
         punt=DecisionRates(
             observed=float(row["punt_observed"]),
             expected=float(row["punt_expected"]),

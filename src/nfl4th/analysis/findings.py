@@ -64,6 +64,51 @@ def coach_bucket_leaderboard(decisions: pd.DataFrame, min_attempts: int = 10) ->
     return df.sort_values(["distance_bucket", "go_for_it_rate"], ascending=[True, False]).reset_index(drop=True)
 
 
+# fixed_drive_result values that mean the possessing team scored on the
+# drive containing the 4th down attempt (verified against real 2024
+# play-by-play data: also present are "Turnover on downs", "Turnover",
+# "Punt", "End of half", "Missed field goal", and "Opp touchdown", none of
+# which count as the possessing team scoring).
+DRIVE_SCORE_RESULTS = {"Touchdown", "Field goal"}
+
+CONTEXT_ORDER = ["trailing", "tied", "leading"]
+
+
+def _score_context(score_differential: float) -> str:
+    if score_differential < 0:
+        return "trailing"
+    if score_differential > 0:
+        return "leading"
+    return "tied"
+
+
+def outcome_impact_by_context(go_for_it_outcomes: pd.DataFrame) -> pd.DataFrame:
+    working = go_for_it_outcomes.copy()
+    working["context"] = working["score_differential"].apply(_score_context)
+    working["drive_scored"] = working["fixed_drive_result"].isin(DRIVE_SCORE_RESULTS)
+
+    rows = []
+    for context in CONTEXT_ORDER:
+        group = working[working["context"] == context]
+        if len(group) == 0:
+            continue
+        rows.append(
+            {
+                "context": context,
+                "n_decisions": len(group),
+                "avg_win_prob_added": float(group["wpa"].mean()),
+                # The attempt succeeding at all: kept the ball, extended the
+                # drive. This is the real goal for a leading team running
+                # clock, not necessarily another score.
+                "converted_rate": float(group["fourth_down_converted"].mean()),
+                "drive_scored_rate": float(group["drive_scored"].mean()),
+            }
+        )
+    return pd.DataFrame(
+        rows, columns=["context", "n_decisions", "avg_win_prob_added", "converted_rate", "drive_scored_rate"]
+    )
+
+
 def league_trend_over_time(decisions: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for season, group in decisions.groupby("season"):

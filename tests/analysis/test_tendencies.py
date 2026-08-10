@@ -1,6 +1,11 @@
 import pandas as pd
+import pytest
 
-from nfl4th.analysis.tendencies import coach_tendency_report, shrinkage_weight
+from nfl4th.analysis.tendencies import (
+    coach_conversion_rates,
+    coach_tendency_report,
+    shrinkage_weight,
+)
 
 
 def test_shrinkage_weight_boundaries():
@@ -54,3 +59,34 @@ def test_report_records_the_coachs_most_recent_season():
     report = coach_tendency_report(decisions, baseline_probs, k=10.0)
 
     assert report.iloc[0]["last_season"] == 2022
+
+
+def test_coach_conversion_rates_computes_observed_rate_per_coach():
+    go_for_it = pd.DataFrame(
+        {
+            "coach": ["Coach A", "Coach A", "Coach A", "Coach B"],
+            "converted": [1, 1, 0, 0],
+        }
+    )
+
+    result = coach_conversion_rates(go_for_it)
+
+    coach_a = result[result["coach"] == "Coach A"].iloc[0]
+    assert coach_a["n_go_for_it_attempts"] == 3
+    assert coach_a["n_conversions"] == 2
+    assert coach_a["conversion_rate"] == pytest.approx(2 / 3)
+
+    coach_b = result[result["coach"] == "Coach B"].iloc[0]
+    assert coach_b["n_go_for_it_attempts"] == 1
+    assert coach_b["n_conversions"] == 0
+    assert coach_b["conversion_rate"] == 0.0
+
+
+def test_coach_conversion_rates_no_shrinkage_applied():
+    # Unlike coach_tendency_report, this is a raw observed rate with no
+    # baseline blend, even for a tiny sample.
+    go_for_it = pd.DataFrame({"coach": ["Rookie"], "converted": [1]})
+
+    result = coach_conversion_rates(go_for_it)
+
+    assert result.iloc[0]["conversion_rate"] == 1.0

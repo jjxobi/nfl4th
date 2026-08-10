@@ -54,6 +54,8 @@ def _synthetic_pbp(seasons: list[int]) -> pd.DataFrame:
                         # both classes; xgboost's binary objective errors out
                         # on a single-class target.
                         "fourth_down_converted": play_id % 2,
+                        "wpa": 0.05 if play_id % 2 == 0 else -0.05,
+                        "fixed_drive_result": "Touchdown" if play_id % 3 == 0 else "Turnover on downs",
                     }
                 )
                 play_id += 1
@@ -157,6 +159,7 @@ def test_run_saves_findings_and_conversion_model_when_model_dir_is_given(monkeyp
     assert "coach_bucket_leaderboard" in findings
     assert "league_trend" in findings
     assert "conversion_by_distance" in findings
+    assert "outcome_by_context" in findings
 
 
 def test_evaluate_returns_accuracy_and_log_loss(monkeypatch):

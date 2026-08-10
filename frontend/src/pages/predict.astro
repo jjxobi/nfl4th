@@ -26,17 +26,18 @@ import Layout from "../layouts/Layout.astro";
       <div class="field-grid">
         <label class="field">
           <span class="field-label">Yards to go</span>
+          <span class="field-hint">To convert</span>
           <input type="number" id="ydstogo" min="1" max="99" value="2" required />
         </label>
         <label class="field">
           <span class="field-label">Yard line</span>
-          <span class="field-hint">Distance from opponent's end zone</span>
+          <span class="field-hint">Opponent's end zone</span>
           <input type="number" id="yardline_100" min="1" max="99" value="40" required />
         </label>
         <label class="field">
-          <span class="field-label">Score differential</span>
-          <span class="field-hint">Positive if leading</span>
-          <input type="number" id="score_differential" min="-60" max="60" value="0" required />
+          <span class="field-label">Quarter</span>
+          <span class="field-hint">5 is overtime</span>
+          <input type="number" id="qtr" min="1" max="5" value="2" required />
         </label>
         <label class="field">
           <span class="field-label">Minutes remaining</span>
@@ -49,8 +50,9 @@ import Layout from "../layouts/Layout.astro";
           <input type="number" id="seconds_remaining" min="0" max="59" value="0" required />
         </label>
         <label class="field">
-          <span class="field-label">Quarter</span>
-          <input type="number" id="qtr" min="1" max="5" value="2" required />
+          <span class="field-label">Score differential</span>
+          <span class="field-hint">Positive if leading</span>
+          <input type="number" id="score_differential" min="-60" max="60" value="0" required />
         </label>
         <label class="field">
           <span class="field-label">Offense timeouts</span>
@@ -74,7 +76,7 @@ import Layout from "../layouts/Layout.astro";
 
   <section id="result-section" class="result-section" hidden>
     <p class="eyebrow">The breakdown</p>
-    <div id="result"></div>
+    <div id="result" aria-live="polite"></div>
   </section>
 </Layout>
 
@@ -200,15 +202,6 @@ import Layout from "../layouts/Layout.astro";
     margin-bottom: var(--space-5);
   }
 
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-    margin: 0 0 var(--space-2);
-  }
-
   .lede {
     font-size: 1.05rem;
     max-width: 46rem;
@@ -263,7 +256,6 @@ import Layout from "../layouts/Layout.astro";
     font-family: var(--font-body);
     font-size: 0.75rem;
     color: var(--color-text-dim);
-    opacity: 0.75;
     margin-top: -0.25rem;
   }
 
@@ -327,7 +319,7 @@ import Layout from "../layouts/Layout.astro";
     background: var(--color-accent);
     border: none;
     border-radius: 4px;
-    color: #14100a;
+    color: var(--color-ink-on-accent);
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 0.95rem;
@@ -447,7 +439,7 @@ import Layout from "../layouts/Layout.astro";
   }
 
   :global(.seg-punt) {
-    background: #57a9b3;
+    background: var(--color-tertiary);
   }
 
   :global(.prob-list) {
@@ -494,12 +486,20 @@ import Layout from "../layouts/Layout.astro";
   }
 
   :global(.swatch-punt) {
-    background: #57a9b3;
+    background: var(--color-tertiary);
   }
 
   :global(.error) {
     color: var(--color-accent);
     font-family: var(--font-mono);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .field input[type="number"],
+    .field select,
+    button[type="submit"] {
+      transition: none;
+    }
   }
 
   @media (max-width: 40rem) {

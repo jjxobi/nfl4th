@@ -66,3 +66,33 @@ def build_conversion_training_data(pbp: pd.DataFrame) -> pd.DataFrame:
     go_for_it["converted"] = go_for_it["fourth_down_converted"].astype(int)
     go_for_it["is_home"] = (go_for_it["posteam"] == go_for_it["home_team"]).astype(int)
     return go_for_it
+
+
+def build_coach_conversion_data(pbp: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
+    # Real observed conversion outcomes per coach, for a descriptive
+    # leaderboard stat (who actually converts most often). Deliberately
+    # separate from the conversion model in models/conversion.py, which is
+    # situation-only by design; this is historical record-keeping, not a
+    # coach feature used to predict anything.
+    decisions = filter_fourth_down_decisions(pbp)
+    with_coach = attach_coach(decisions, schedules)
+    go_for_it = with_coach[with_coach["decision"] == "go_for_it"].copy()
+    go_for_it["converted"] = go_for_it["fourth_down_converted"].astype(int)
+    return go_for_it[["coach", "season", "converted"]].reset_index(drop=True)
+
+
+def build_outcome_context_data(pbp: pd.DataFrame, schedules: pd.DataFrame) -> pd.DataFrame:
+    # wpa (win probability added by the play itself) and fixed_drive_result
+    # (how the drive containing the play actually ended) are both real,
+    # already-computed nflverse fields, not derived here. fourth_down_converted
+    # is kept alongside them because "did the drive score" is the wrong
+    # success measure for a team that's already leading: keeping the ball
+    # (converting) is the actual goal there, not necessarily scoring again.
+    # Scoped to go-for-it attempts only, since that's the decision whose
+    # real-world payoff is in question.
+    decisions = filter_fourth_down_decisions(pbp)
+    with_coach = attach_coach(decisions, schedules)
+    go_for_it = with_coach[with_coach["decision"] == "go_for_it"].copy()
+    return go_for_it[
+        ["season", "score_differential", "wpa", "fixed_drive_result", "fourth_down_converted"]
+    ].reset_index(drop=True)

@@ -11,14 +11,17 @@ from nfl4th.analysis.findings import (
     DISTANCE_BUCKETS,
     coach_bucket_leaderboard,
     league_trend_over_time,
+    outcome_impact_by_context,
     situational_splits,
 )
-from nfl4th.analysis.tendencies import coach_tendency_report
+from nfl4th.analysis.tendencies import coach_conversion_rates, coach_tendency_report
 from nfl4th.data.ingest import load_pbp, load_schedules
 from nfl4th.features.build_features import (
     DECISION_CLASSES,
+    build_coach_conversion_data,
     build_conversion_training_data,
     build_feature_table,
+    build_outcome_context_data,
 )
 from nfl4th.features.split import time_based_split
 from nfl4th.models.baseline import (
@@ -105,13 +108,16 @@ def _conversion_grid(conversion_model) -> list[dict]:
     return rows
 
 
-def save_findings_artifacts(train_df: pd.DataFrame, conversion_model, model_dir: Path) -> None:
+def save_findings_artifacts(
+    train_df: pd.DataFrame, conversion_model, model_dir: Path, outcome_context_df: pd.DataFrame
+) -> None:
     model_dir.mkdir(parents=True, exist_ok=True)
     findings = {
         "situational_splits": situational_splits(train_df).to_dict(orient="records"),
         "coach_bucket_leaderboard": coach_bucket_leaderboard(train_df).to_dict(orient="records"),
         "league_trend": league_trend_over_time(train_df).to_dict(orient="records"),
         "conversion_by_distance": _conversion_grid(conversion_model),
+        "outcome_by_context": outcome_impact_by_context(outcome_context_df).to_dict(orient="records"),
     }
     (model_dir / "findings.json").write_text(json.dumps(findings))
 
@@ -154,10 +160,23 @@ def run(train_seasons: range, val_seasons: range, test_seasons: range, model_dir
     baseline_no_coach_train_probs = predict_baseline(baseline_no_coach_model, train_df)
     report = coach_tendency_report(train_df, baseline_no_coach_train_probs)
 
+    coach_conversion_train_df, _, _ = time_based_split(
+        build_coach_conversion_data(pbp, schedules), train_seasons, range(0), range(0)
+    )
+    conversion_rates = coach_conversion_rates(coach_conversion_train_df)
+    report = report.merge(conversion_rates, on="coach", how="left")
+    report["n_go_for_it_attempts"] = report["n_go_for_it_attempts"].fillna(0).astype(int)
+    report["n_conversions"] = report["n_conversions"].fillna(0).astype(int)
+    report["conversion_rate"] = report["conversion_rate"].fillna(0.0)
+
     conversion_train_df, _, _ = time_based_split(
         build_conversion_training_data(pbp), train_seasons, range(0), range(0)
     )
     conversion_model = train_conversion_model(conversion_train_df)
+
+    outcome_context_train_df, _, _ = time_based_split(
+        build_outcome_context_data(pbp, schedules), train_seasons, range(0), range(0)
+    )
 
     if model_dir is not None:
         save_baseline(baseline_model, model_dir / "baseline")
@@ -165,7 +184,7 @@ def run(train_seasons: range, val_seasons: range, test_seasons: range, model_dir
         save_embedding_model(embedding_model, vocab, model_dir / "embedding")
         save_run_artifacts(report, all_seasons, model_dir)
         save_conversion_model(conversion_model, model_dir / "conversion")
-        save_findings_artifacts(train_df, conversion_model, model_dir)
+        save_findings_artifacts(train_df, conversion_model, model_dir, outcome_context_train_df)
 
     return report
 

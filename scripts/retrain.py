@@ -101,6 +101,12 @@ def main() -> None:
         )
         sys.exit(1)
 
+    if not findings["outcome_by_context"]:
+        print(
+            "Sanity check failed: outcome_by_context is empty. Not trusting these artifacts."
+        )
+        sys.exit(1)
+
     print(f"Wrote refreshed models to {MODEL_DIR}")
 
 

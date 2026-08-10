@@ -22,11 +22,12 @@ import Layout from "../layouts/Layout.astro";
           <th data-sort="n_decisions" tabindex="0" scope="col" class="num">Decisions<span class="sort-arrow" aria-hidden="true"></span></th>
           <th data-sort="go_for_it" tabindex="0" scope="col" class="num">Go For It<span class="sort-arrow" aria-hidden="true"></span></th>
           <th data-sort="punt" tabindex="0" scope="col" class="num">Punt<span class="sort-arrow" aria-hidden="true"></span></th>
-          <th data-sort="field_goal" tabindex="0" scope="col" class="num">Field Goal<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th data-sort="field_goal" tabindex="0" scope="col" class="num">FG<span class="sort-arrow" aria-hidden="true"></span></th>
+          <th data-sort="conversion_rate" tabindex="0" scope="col" class="num">Success %<span class="sort-arrow" aria-hidden="true"></span></th>
         </tr>
       </thead>
       <tbody id="coach-table-body">
-        <tr class="table-message-row"><td colspan="5">Loading coaches&hellip;</td></tr>
+        <tr class="table-message-row"><td colspan="6">Loading coaches&hellip;</td></tr>
       </tbody>
     </table>
   </div>
@@ -49,7 +50,15 @@ import Layout from "../layouts/Layout.astro";
     go_for_it: "go for it rate",
     punt: "punt rate",
     field_goal: "field goal rate",
+    conversion_rate: "success rate",
   };
+
+  // Punt and field goal don't have a stored exact count like
+  // n_go_for_it_attempts does, but observed is the raw, unshrunk rate, so
+  // multiplying it back by n_decisions reconstructs the real count exactly.
+  function decisionCount(coach: CoachProfile, observedRate: number): number {
+    return Math.round(observedRate * coach.n_decisions);
+  }
 
   function sortValue(coach: CoachProfile, key: string): number | string {
     if (key === "coach") return coach.coach;
@@ -57,6 +66,7 @@ import Layout from "../layouts/Layout.astro";
     if (key === "go_for_it") return coach.go_for_it.shrunk;
     if (key === "punt") return coach.punt.shrunk;
     if (key === "field_goal") return coach.field_goal.shrunk;
+    if (key === "conversion_rate") return coach.conversion_rate;
     return "";
   }
 
@@ -107,9 +117,10 @@ import Layout from "../layouts/Layout.astro";
       row.innerHTML = `
         <td>${coach.coach}</td>
         <td class="num">${coach.n_decisions.toLocaleString()}</td>
-        <td class="num">${(coach.go_for_it.shrunk * 100).toFixed(1)}%</td>
-        <td class="num">${(coach.punt.shrunk * 100).toFixed(1)}%</td>
-        <td class="num">${(coach.field_goal.shrunk * 100).toFixed(1)}%</td>
+        <td class="num">${(coach.go_for_it.shrunk * 100).toFixed(1)}% <span class="num-context">(${coach.n_go_for_it_attempts})</span></td>
+        <td class="num">${(coach.punt.shrunk * 100).toFixed(1)}% <span class="num-context">(${decisionCount(coach, coach.punt.observed)})</span></td>
+        <td class="num">${(coach.field_goal.shrunk * 100).toFixed(1)}% <span class="num-context">(${decisionCount(coach, coach.field_goal.observed)})</span></td>
+        <td class="num">${coach.n_go_for_it_attempts > 0 ? `${(coach.conversion_rate * 100).toFixed(1)}%` : "n/a"}</td>
       `;
       row.addEventListener("click", () => selectRow(row, coach));
       row.addEventListener("keydown", (event) => {
@@ -144,6 +155,24 @@ import Layout from "../layouts/Layout.astro";
     `;
   }
 
+  function conversionSummary(coach: CoachProfile): string {
+    if (coach.n_go_for_it_attempts === 0) {
+      return `
+        <div class="conversion-summary">
+          <span class="stat-label">Go-for-it success rate</span>
+          <p class="stat-footnote">No go-for-it attempts on record.</p>
+        </div>
+      `;
+    }
+    return `
+      <div class="conversion-summary">
+        <span class="stat-label">Conversion rate</span>
+        <span class="stat-value">${(coach.conversion_rate * 100).toFixed(1)}%</span>
+        <p class="stat-footnote">${coach.n_conversions} of ${coach.n_go_for_it_attempts} go-for-it attempts converted</p>
+      </div>
+    `;
+  }
+
   function showDetail(coach: CoachProfile) {
     const detail = document.getElementById("coach-detail")!;
     detail.hidden = false;
@@ -158,6 +187,8 @@ import Layout from "../layouts/Layout.astro";
         ${statBlock("Punt", coach.punt)}
       </div>
       <p class="detail-note">The bar is this coach's real rate, shrunk toward the baseline to account for career sample size. The marker is the situational baseline: what a league-average coach would do given the same mix of down, distance, and score.</p>
+      ${conversionSummary(coach)}
+      <p class="detail-note">Go-for-it success rate is this coach's real historical rate when they do go for it, not shrunk or compared to a baseline: whether an attempt converts is treated as a property of the situation, not the coach.</p>
     `;
     detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -197,7 +228,7 @@ import Layout from "../layouts/Layout.astro";
     })
     .catch((error) => {
       const body = document.getElementById("coach-table-body")!;
-      body.innerHTML = `<tr class="table-message-row"><td colspan="5">Could not load coaches: ${error instanceof Error ? error.message : "unknown error"}</td></tr>`;
+      body.innerHTML = `<tr class="table-message-row"><td colspan="6">Could not load coaches: ${error instanceof Error ? error.message : "unknown error"}</td></tr>`;
       const summary = document.getElementById("coach-summary")!;
       summary.textContent = "Coach data is unavailable right now.";
     });
@@ -252,8 +283,8 @@ import Layout from "../layouts/Layout.astro";
   }
 
   #coach-table thead th {
-    text-align: left;
-    padding: var(--space-3);
+    text-align: center;
+    padding: 0.6rem 0.7rem;
     font-family: var(--font-mono);
     font-size: 0.72rem;
     letter-spacing: 0.08em;
@@ -278,7 +309,7 @@ import Layout from "../layouts/Layout.astro";
 
   #coach-table thead th.num,
   #coach-table td.num {
-    text-align: right;
+    text-align: center;
   }
 
   .sort-arrow {
@@ -318,9 +349,10 @@ import Layout from "../layouts/Layout.astro";
   }
 
   #coach-table-body td {
-    padding: var(--space-3);
+    padding: 0.6rem 0.7rem;
     border-bottom: 1px solid var(--color-line);
-    font-size: 0.92rem;
+    font-size: 0.88rem;
+    text-align: center;
     transition: background-color 0.12s ease;
   }
 
@@ -331,6 +363,11 @@ import Layout from "../layouts/Layout.astro";
   #coach-table-body td.num {
     font-family: var(--font-mono);
     color: var(--color-text-dim);
+    white-space: nowrap;
+  }
+
+  .num-context {
+    font-size: 0.8em;
   }
 
   #coach-table-body tr:last-child td {
@@ -440,6 +477,23 @@ import Layout from "../layouts/Layout.astro";
     font-size: 0.78rem;
     color: var(--color-text-dim);
     max-width: none;
+  }
+
+  .conversion-summary {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-line);
+    border-radius: 4px;
+  }
+
+  .conversion-summary .stat-value {
+    display: block;
+    margin: 0.2rem 0;
+  }
+
+  .conversion-summary .stat-footnote {
+    margin-top: 0.2rem;
   }
 
   .sr-only {

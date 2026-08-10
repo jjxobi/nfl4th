@@ -5,8 +5,10 @@ from nfl4th.features.build_features import (
     SITUATIONAL_FEATURES,
     add_career_decision_count,
     attach_coach,
+    build_coach_conversion_data,
     build_conversion_training_data,
     build_feature_table,
+    build_outcome_context_data,
     filter_fourth_down_decisions,
 )
 
@@ -205,3 +207,51 @@ def test_build_conversion_training_data_computes_is_home():
 
     assert list(result[result["posteam"] == "ARI"]["is_home"]) == [0]
     assert list(result[result["posteam"] == "WAS"]["is_home"]) == [1]
+
+
+def test_build_outcome_context_data_keeps_only_go_for_it_attempts():
+    pbp = pd.DataFrame(
+        [
+            _situational_row(posteam="ARI", home_team="WAS", away_team="ARI", play_type="run", play_id=1, wpa=0.05, fixed_drive_result="Touchdown", fourth_down_converted=1),
+            _situational_row(posteam="ARI", home_team="WAS", away_team="ARI", play_type="punt", play_id=2, week=2, game_id="g2", wpa=-0.02, fixed_drive_result="Punt", fourth_down_converted=0),
+            _situational_row(posteam="ARI", home_team="WAS", away_team="ARI", play_type="pass", play_id=3, week=3, game_id="g3", wpa=-0.1, fixed_drive_result="Turnover on downs", fourth_down_converted=0),
+        ]
+    )
+    schedules = pd.DataFrame(
+        [
+            {"game_id": "2023_01_ARI_WAS", "home_coach": "Ron Rivera", "away_coach": "Jonathan Gannon"},
+            {"game_id": "g2", "home_coach": "Ron Rivera", "away_coach": "Jonathan Gannon"},
+            {"game_id": "g3", "home_coach": "Ron Rivera", "away_coach": "Jonathan Gannon"},
+        ]
+    )
+
+    result = build_outcome_context_data(pbp, schedules)
+
+    assert list(result.columns) == ["season", "score_differential", "wpa", "fixed_drive_result", "fourth_down_converted"]
+    assert len(result) == 2
+    assert set(result["fixed_drive_result"]) == {"Touchdown", "Turnover on downs"}
+
+
+def test_build_coach_conversion_data_keeps_only_go_for_it_attempts():
+    pbp = pd.DataFrame(
+        [
+            _situational_row(posteam="ARI", home_team="WAS", away_team="ARI", play_type="run", play_id=1, fourth_down_converted=1),
+            _situational_row(posteam="ARI", home_team="WAS", away_team="ARI", play_type="punt", play_id=2, week=2, game_id="g2", fourth_down_converted=0),
+            _situational_row(posteam="WAS", home_team="WAS", away_team="ARI", play_type="pass", play_id=3, week=3, game_id="g3", fourth_down_converted=1),
+        ]
+    )
+    schedules = pd.DataFrame(
+        [
+            {"game_id": "2023_01_ARI_WAS", "home_coach": "Ron Rivera", "away_coach": "Jonathan Gannon"},
+            {"game_id": "g2", "home_coach": "Ron Rivera", "away_coach": "Jonathan Gannon"},
+            {"game_id": "g3", "home_coach": "Ron Rivera", "away_coach": "Jonathan Gannon"},
+        ]
+    )
+
+    result = build_coach_conversion_data(pbp, schedules)
+
+    assert list(result.columns) == ["coach", "season", "converted"]
+    assert len(result) == 2
+    assert set(result["coach"]) == {"Jonathan Gannon", "Ron Rivera"}
+    assert list(result[result["coach"] == "Jonathan Gannon"]["converted"]) == [1]
+    assert list(result[result["coach"] == "Ron Rivera"]["converted"]) == [1]

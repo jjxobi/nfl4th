@@ -9,10 +9,33 @@ import Layout from "../layouts/Layout.astro";
     <p class="lede">
       Real patterns pulled from every 4th down decision since 2010, not just a lookup tool.
     </p>
+    <div class="stats-strip" id="stats-strip" hidden>
+      <div class="stat-item">
+        <span class="stat-item-value" id="stat-decisions">0</span>
+        <span class="stat-item-label">decisions analyzed</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-item-value" id="stat-attempts">0</span>
+        <span class="stat-item-label">4th downs attempted</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-item-value" id="stat-conversions">0</span>
+        <span class="stat-item-label">successful conversions</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-item-value" id="stat-seasons">2010</span>
+        <span class="stat-item-label">seasons of play by play</span>
+      </div>
+    </div>
+    <label class="filter-toggle">
+      <input type="checkbox" id="current-only" checked />
+      <span>Current head coaches only</span>
+    </label>
+    <p class="section-note">Applies to superlatives and the by-coach leaderboard below. Situational, conversion, and league-wide numbers always include every coach in the historical record.</p>
   </section>
 
   <section class="findings-section">
-    <p class="eyebrow">Superlatives</p>
+    <h2>Superlatives</h2>
     <p class="section-note">Minimum 100 career decisions to qualify.</p>
     <div id="superlatives" class="superlative-grid">
       <p class="loading-note">Loading&hellip;</p>
@@ -20,30 +43,43 @@ import Layout from "../layouts/Layout.astro";
   </section>
 
   <section class="findings-section">
-    <p class="eyebrow">Situational splits</p>
-    <p class="section-note">How often the league goes for it, by distance to go.</p>
-    <div id="splits-chart" class="bar-chart"></div>
-  </section>
-
-  <section class="findings-section">
-    <p class="eyebrow">Conversion odds</p>
+    <h2>How often, and how well</h2>
     <p class="section-note">
-      If a team goes for it, how often it actually works, by distance to go. These are the
-      model's estimates for one typical situation with only distance varying, not raw historical
-      rates for that exact combination.
+      How often the league actually goes for it, paired with how often it works when they do.
+      Go-for-it rate is the real historical rate; conversion odds are the model's estimate for
+      one typical situation with only distance varying, not a raw rate for that exact combination.
     </p>
-    <div id="conversion-chart" class="bar-chart"></div>
+    <div class="chart-legend">
+      <span class="legend-item"><i class="legend-swatch legend-go" aria-hidden="true"></i>Go-for-it rate</span>
+      <span class="legend-item"><i class="legend-swatch legend-conv" aria-hidden="true"></i>Conversion odds</span>
+    </div>
+    <div id="pair-chart" class="comparison-chart"></div>
   </section>
 
   <section class="findings-section">
-    <p class="eyebrow">League trend</p>
+    <h2>Does it actually help?</h2>
+    <p class="section-note">
+      Average shift in win probability when a team goes for it, split by whether they were
+      trailing, tied, or leading at the time. Win probability added comes straight from
+      nflverse's own play-level model, not an estimate made for this site. Positive means the
+      decision helped on average; negative means it hurt. A leading team doesn't need to score
+      again to win the exchange: keeping the ball and running clock counts too, so both numbers
+      are shown below.
+    </p>
+    <div id="outcome-context" class="outcome-grid">
+      <p class="loading-note">Loading&hellip;</p>
+    </div>
+  </section>
+
+  <section class="findings-section">
+    <h2>League trend</h2>
     <p class="section-note">League-wide go-for-it rate by season.</p>
     <div id="trend-chart" class="trend-chart"></div>
   </section>
 
   <section class="findings-section">
-    <p class="eyebrow">By coach, by situation</p>
-    <p class="section-note">The most aggressive coaches within each distance bucket, minimum sample size applied.</p>
+    <h2>By coach, by situation</h2>
+    <p class="section-note">The five most aggressive coaches within each distance bucket, minimum sample size applied.</p>
     <div id="coach-leaderboard" class="coach-leaderboard">
       <p class="loading-note">Loading&hellip;</p>
     </div>
@@ -51,24 +87,41 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { getCoaches, getFindings, type CoachProfile, type FindingsData } from "../lib/api";
+  import { getCoaches, getFindings, getHealth, type CoachProfile, type FindingsData } from "../lib/api";
 
   const MIN_SUPERLATIVE_DECISIONS = 100;
+  const LEADERBOARD_SIZE = 5;
 
-  function renderSuperlatives(coaches: CoachProfile[]): string {
-    const eligible = coaches.filter((coach) => coach.n_decisions >= MIN_SUPERLATIVE_DECISIONS);
+  let coaches: CoachProfile[] = [];
+  let findings: FindingsData | null = null;
+  let latestSeason: number | null = null;
+  let currentOnly = true;
+
+  function visibleCoaches(): CoachProfile[] {
+    if (currentOnly && latestSeason !== null) {
+      return coaches.filter((coach) => coach.last_season === latestSeason);
+    }
+    return coaches;
+  }
+
+  function renderSuperlatives(pool: CoachProfile[]): string {
+    const eligible = pool.filter((coach) => coach.n_decisions >= MIN_SUPERLATIVE_DECISIONS);
+    if (eligible.length === 0) {
+      return `<p class="loading-note">No coaches meet the minimum decision count with the current filter.</p>`;
+    }
     const mostAggressive = [...eligible].sort((a, b) => b.go_for_it.shrunk - a.go_for_it.shrunk)[0];
     const mostConservative = [...eligible].sort((a, b) => a.go_for_it.shrunk - b.go_for_it.shrunk)[0];
     const biggestGap = [...eligible].sort(
       (a, b) =>
         Math.abs(b.go_for_it.observed - b.go_for_it.expected) - Math.abs(a.go_for_it.observed - a.go_for_it.expected)
     )[0];
+    const mostSuccessful = [...eligible].sort((a, b) => b.conversion_rate - a.conversion_rate)[0];
 
     const card = (label: string, coach: CoachProfile, value: string) => `
       <div class="superlative-card">
         <span class="superlative-label">${label}</span>
         <span class="superlative-coach">${coach.coach}</span>
-        <span class="superlative-value">${value} (${coach.n_decisions} decisions)</span>
+        <span class="superlative-value">${value} (${coach.n_decisions.toLocaleString()} decisions)</span>
       </div>
     `;
 
@@ -79,31 +132,93 @@ import Layout from "../layouts/Layout.astro";
         "Biggest outlier",
         biggestGap,
         `${((biggestGap.go_for_it.observed - biggestGap.go_for_it.expected) * 100).toFixed(1)} points from expected`
+      ) +
+      card(
+        "Most successful",
+        mostSuccessful,
+        `${mostSuccessful.n_conversions}/${mostSuccessful.n_go_for_it_attempts} conversions`
       )
     );
   }
 
-  function renderBarChart(rows: { distance_bucket: string; value: number }[]): string {
-    return rows
+  function renderComparisonChart(
+    splits: FindingsData["situational_splits"],
+    conversion: FindingsData["conversion_by_distance"]
+  ): string {
+    const conversionByBucket = new Map(conversion.map((entry) => [entry.distance_bucket, entry.conversion_probability]));
+    const buckets = [...splits].sort((a, b) => BUCKET_ORDER.indexOf(a.distance_bucket) - BUCKET_ORDER.indexOf(b.distance_bucket));
+    if (buckets.length === 0) return "";
+
+    const width = 640;
+    const height = 300;
+    const sidePadding = 36;
+    const topPadding = 30;
+    const bottomPadding = 70;
+    const stepX = buckets.length > 1 ? (width - sidePadding * 2) / (buckets.length - 1) : 0;
+    const plotBottom = height - bottomPadding;
+
+    const goRates = buckets.map((b) => b.go_for_it_rate);
+    const convRates = buckets.map((b) => conversionByBucket.get(b.distance_bucket) ?? 0);
+    const allRates = [...goRates, ...convRates];
+    const axisMin = Math.max(Math.min(...allRates) - 0.08, 0);
+    const axisMax = Math.min(Math.max(...allRates) + 0.08, 1);
+    const rateSpan = Math.max(axisMax - axisMin, 0.001);
+
+    const xFor = (i: number) => sidePadding + i * stepX;
+    const yFor = (rate: number) => plotBottom - ((rate - axisMin) / rateSpan) * (plotBottom - topPadding);
+
+    const line = (rates: number[], color: string) =>
+      `<polyline points="${rates.map((rate, i) => `${xFor(i)},${yFor(rate)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2.5" />`;
+
+    const markers = (rates: number[], color: string, labelAbove: boolean) =>
+      rates
+        .map((rate, i) => {
+          const cx = xFor(i);
+          const cy = yFor(rate);
+          const textY = labelAbove ? cy - 10 : cy + 18;
+          return `
+            <circle cx="${cx}" cy="${cy}" r="3.5" fill="${color}" />
+            <text x="${cx}" y="${textY}" text-anchor="middle" font-size="11" fill="${color}">${(rate * 100).toFixed(0)}%</text>
+          `;
+        })
+        .join("");
+
+    const tickY = plotBottom + 22;
+    const xTicks = buckets
       .map(
-        (row) => `
-        <div class="bar-row">
-          <span class="bar-label">${row.distance_bucket}</span>
-          <div class="bar-track">
-            <span class="bar-fill" style="width: ${row.value * 100}%"></span>
-          </div>
-          <span class="bar-value">${(row.value * 100).toFixed(1)}%</span>
-        </div>
-      `
+        (b, i) => `
+          <line x1="${xFor(i)}" y1="${plotBottom}" x2="${xFor(i)}" y2="${plotBottom + 6}" stroke="var(--color-line)" />
+          <text x="${xFor(i)}" y="${tickY}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-dim)">${b.distance_bucket}</text>
+        `
       )
       .join("");
+    const axisCaptionY = plotBottom + 44;
+    const axisLine = `<line x1="${sidePadding}" y1="${plotBottom}" x2="${width - sidePadding}" y2="${plotBottom}" stroke="var(--color-line)" />`;
+    const axisCaption = `<text x="${width / 2}" y="${axisCaptionY}" text-anchor="middle" font-size="11" letter-spacing="0.08em" font-family="var(--font-mono)" fill="var(--color-text-dim)">YARDS TO GO FOR A FIRST DOWN</text>`;
+
+    const ariaLabel = `Go for it rate versus conversion odds by distance to go, both trending down as distance increases. Go for it rate ranges from ${(Math.min(...goRates) * 100).toFixed(1)} to ${(Math.max(...goRates) * 100).toFixed(1)} percent. Conversion odds range from ${(Math.min(...convRates) * 100).toFixed(1)} to ${(Math.max(...convRates) * 100).toFixed(1)} percent.`;
+
+    return `
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${ariaLabel}">
+        ${axisLine}
+        ${xTicks}
+        ${axisCaption}
+        ${line(goRates, "var(--color-accent)")}
+        ${line(convRates, "var(--color-accent-2)")}
+        ${markers(goRates, "var(--color-accent)", true)}
+        ${markers(convRates, "var(--color-accent-2)", false)}
+      </svg>
+    `;
   }
 
   function renderTrendChart(points: { season: number; go_for_it_rate: number }[]): string {
     if (points.length === 0) return "";
-    const width = 600;
-    const height = 200;
-    const padding = 24;
+    const width = 640;
+    const height = 300;
+    const sidePadding = 36;
+    const topPadding = 30;
+    const bottomPadding = 60;
+    const plotBottom = height - bottomPadding;
     const minSeason = points[0].season;
     const maxSeason = points[points.length - 1].season;
     const seasonSpan = Math.max(maxSeason - minSeason, 1);
@@ -118,38 +233,121 @@ import Layout from "../layouts/Layout.astro";
     const axisMax = maxRate * 1.15;
     const rateSpan = Math.max(axisMax - axisMin, 0.001);
 
-    const coords = points.map((point) => {
-      const x = padding + ((point.season - minSeason) / seasonSpan) * (width - padding * 2);
-      const y = height - padding - ((point.go_for_it_rate - axisMin) / rateSpan) * (height - padding * 2);
-      return `${x},${y}`;
-    });
+    const xFor = (season: number) => sidePadding + ((season - minSeason) / seasonSpan) * (width - sidePadding * 2);
+    const yFor = (rate: number) => plotBottom - ((rate - axisMin) / rateSpan) * (plotBottom - topPadding);
+
+    const coords = points.map((point) => `${xFor(point.season)},${yFor(point.go_for_it_rate)}`).join(" ");
+
+    const dots = points
+      .map((point) => `<circle cx="${xFor(point.season)}" cy="${yFor(point.go_for_it_rate)}" r="2.5" fill="var(--color-accent)" />`)
+      .join("");
+
+    // Labeling every season gets cramped once there are more than ~8, so
+    // thin the tick marks out while always keeping the first and last.
+    const tickEvery = Math.max(Math.ceil(points.length / 6), 1);
+    const tickSeasons = points.filter((_, i) => i % tickEvery === 0 || i === points.length - 1);
+
+    const tickY = plotBottom + 22;
+    const xTicks = tickSeasons
+      .map(
+        (point) => `
+          <line x1="${xFor(point.season)}" y1="${plotBottom}" x2="${xFor(point.season)}" y2="${plotBottom + 6}" stroke="var(--color-line)" />
+          <text x="${xFor(point.season)}" y="${tickY}" text-anchor="middle" font-size="12" font-family="var(--font-mono)" fill="var(--color-text-dim)">${point.season}</text>
+        `
+      )
+      .join("");
+    const axisLine = `<line x1="${sidePadding}" y1="${plotBottom}" x2="${width - sidePadding}" y2="${plotBottom}" stroke="var(--color-line)" />`;
+
+    const startLabel = `<text x="${sidePadding}" y="${topPadding - 10}" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-dim)">${(minRate * 100).toFixed(1)}% low</text>`;
+    const endLabel = `<text x="${width - sidePadding}" y="${topPadding - 10}" text-anchor="end" font-size="11" font-family="var(--font-mono)" fill="var(--color-text-dim)">${(maxRate * 100).toFixed(1)}% high</text>`;
 
     return `
       <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="League go for it rate by season, from ${minSeason} to ${maxSeason}, ranging from ${(minRate * 100).toFixed(1)}% to ${(maxRate * 100).toFixed(1)}%">
-        <polyline points="${coords.join(" ")}" fill="none" stroke="var(--color-accent)" stroke-width="2" />
+        ${axisLine}
+        ${xTicks}
+        ${startLabel}
+        ${endLabel}
+        <polyline points="${coords}" fill="none" stroke="var(--color-accent)" stroke-width="2" />
+        ${dots}
       </svg>
-      <div class="trend-labels">
-        <span>${minSeason}</span>
-        <span>${maxSeason}</span>
-      </div>
-      <div class="trend-labels trend-labels-y">
-        <span>Low: ${(minRate * 100).toFixed(1)}%</span>
-        <span>High: ${(maxRate * 100).toFixed(1)}%</span>
-      </div>
     `;
+  }
+
+  const CONTEXT_LABELS: Record<string, string> = {
+    trailing: "Trailing",
+    tied: "Tied",
+    leading: "Leading",
+  };
+
+  const CONTEXT_NOTES: Record<string, string> = {
+    trailing: "Trying to get back in it",
+    tied: "Trying to take the lead",
+    leading: "Trying to put it away",
+  };
+
+  const CONTEXT_KEPT_BALL_NOTES: Record<string, string> = {
+    trailing: "Kept the ball (converted)",
+    tied: "Kept the ball (converted)",
+    leading: "Kept the ball, ran clock (converted)",
+  };
+
+  function renderOutcomeContext(entries: FindingsData["outcome_by_context"]): string {
+    if (entries.length === 0) {
+      return `<p class="loading-note">Not enough data yet.</p>`;
+    }
+    return entries
+      .map((entry) => {
+        const wpaPts = entry.avg_win_prob_added * 100;
+        const sign = wpaPts >= 0 ? "+" : "";
+        const convertedPct = entry.converted_rate * 100;
+        const scoredPct = entry.drive_scored_rate * 100;
+        const statRow = (label: string, pct: number, dim: boolean) => `
+          <div class="outcome-stat">
+            <div class="outcome-stat-row">
+              <span>${label}</span>
+              <span>${pct.toFixed(1)}%</span>
+            </div>
+            <div class="outcome-stat-bar${dim ? " outcome-stat-bar-dim" : ""}">
+              <span style="width: ${pct}%"></span>
+            </div>
+          </div>
+        `;
+        return `
+          <div class="outcome-card">
+            <div class="outcome-head">
+              <span class="outcome-label">${CONTEXT_LABELS[entry.context] ?? entry.context}</span>
+              <span class="outcome-context-note">${CONTEXT_NOTES[entry.context] ?? ""}</span>
+            </div>
+            <div class="outcome-wpa-block">
+              <span class="outcome-wpa">${sign}${wpaPts.toFixed(1)} pts</span>
+              <span class="outcome-wpa-label">average win probability added</span>
+            </div>
+            <div class="outcome-stats">
+              ${statRow(CONTEXT_KEPT_BALL_NOTES[entry.context] ?? "Converted", convertedPct, false)}
+              ${statRow("Drive ended in a score", scoredPct, true)}
+            </div>
+            <span class="outcome-n">${entry.n_decisions.toLocaleString()} attempts</span>
+          </div>
+        `;
+      })
+      .join("");
   }
 
   const BUCKET_ORDER = ["1", "2", "3", "4-6", "7-10", "11+"];
 
-  function renderCoachLeaderboard(entries: FindingsData["coach_bucket_leaderboard"]): string {
-    const buckets = [...new Set(entries.map((entry) => entry.distance_bucket))].sort(
+  function renderCoachLeaderboard(entries: FindingsData["coach_bucket_leaderboard"], currentNames: Set<string> | null): string {
+    const filtered = currentNames === null ? entries : entries.filter((entry) => currentNames.has(entry.coach));
+    const buckets = [...new Set(filtered.map((entry) => entry.distance_bucket))].sort(
       (a, b) => BUCKET_ORDER.indexOf(a) - BUCKET_ORDER.indexOf(b)
     );
+    if (buckets.length === 0) {
+      return `<p class="loading-note">No coaches meet the current filter in any distance bucket.</p>`;
+    }
     return buckets
       .map((bucket) => {
-        const top = entries
+        const top = filtered
           .filter((entry) => entry.distance_bucket === bucket)
-          .slice(0, 3);
+          .slice(0, LEADERBOARD_SIZE);
         if (top.length === 0) return "";
         const rows = top
           .map(
@@ -168,24 +366,46 @@ import Layout from "../layouts/Layout.astro";
       .join("");
   }
 
-  Promise.all([getCoaches(), getFindings()])
-    .then(([coaches, findings]) => {
-      document.getElementById("superlatives")!.innerHTML = renderSuperlatives(coaches);
-      document.getElementById("splits-chart")!.innerHTML = renderBarChart(
-        findings.situational_splits.map((split) => ({ distance_bucket: split.distance_bucket, value: split.go_for_it_rate }))
-      );
-      document.getElementById("conversion-chart")!.innerHTML = renderBarChart(
-        findings.conversion_by_distance.map((entry) => ({
-          distance_bucket: entry.distance_bucket,
-          value: entry.conversion_probability,
-        }))
+  function renderFilteredSections() {
+    const pool = visibleCoaches();
+    const currentNames = currentOnly ? new Set(pool.map((coach) => coach.coach)) : null;
+    document.getElementById("superlatives")!.innerHTML = renderSuperlatives(pool);
+    if (findings) {
+      document.getElementById("coach-leaderboard")!.innerHTML = renderCoachLeaderboard(findings.coach_bucket_leaderboard, currentNames);
+    }
+  }
+
+  document.getElementById("current-only")!.addEventListener("change", (event) => {
+    currentOnly = (event.target as HTMLInputElement).checked;
+    renderFilteredSections();
+  });
+
+  Promise.all([getCoaches(), getFindings(), getHealth()])
+    .then(([coachData, findingsData, health]) => {
+      coaches = coachData;
+      findings = findingsData;
+      latestSeason = health.latest_season;
+
+      renderFilteredSections();
+      document.getElementById("pair-chart")!.innerHTML = renderComparisonChart(
+        findings.situational_splits,
+        findings.conversion_by_distance
       );
       document.getElementById("trend-chart")!.innerHTML = renderTrendChart(findings.league_trend);
-      document.getElementById("coach-leaderboard")!.innerHTML = renderCoachLeaderboard(findings.coach_bucket_leaderboard);
+      document.getElementById("outcome-context")!.innerHTML = renderOutcomeContext(findings.outcome_by_context);
+
+      const totalDecisions = findings.league_trend.reduce((sum, point) => sum + point.n_decisions, 0);
+      const totalAttempts = coaches.reduce((sum, coach) => sum + coach.n_go_for_it_attempts, 0);
+      const totalConversions = coaches.reduce((sum, coach) => sum + coach.n_conversions, 0);
+      document.getElementById("stat-decisions")!.textContent = totalDecisions.toLocaleString();
+      document.getElementById("stat-attempts")!.textContent = totalAttempts.toLocaleString();
+      document.getElementById("stat-conversions")!.textContent = totalConversions.toLocaleString();
+      document.getElementById("stat-seasons")!.textContent = `2010-${health.latest_season}`;
+      document.getElementById("stats-strip")!.hidden = false;
     })
     .catch((error) => {
       const message = `<p class="error">Could not load findings: ${error instanceof Error ? error.message : "unknown error"}</p>`;
-      const containerIds = ["superlatives", "splits-chart", "conversion-chart", "trend-chart", "coach-leaderboard"];
+      const containerIds = ["superlatives", "pair-chart", "outcome-context", "trend-chart", "coach-leaderboard"];
       for (const id of containerIds) {
         document.getElementById(id)!.innerHTML = message;
       }
@@ -198,18 +418,60 @@ import Layout from "../layouts/Layout.astro";
     margin-bottom: var(--space-5);
   }
 
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-    margin: 0 0 var(--space-2);
-  }
-
   .lede {
     font-size: 1.05rem;
     max-width: 46rem;
+  }
+
+  .stats-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-3);
+    margin: var(--space-4) 0;
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+    overflow-x: auto;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1 1 0;
+    min-width: 6rem;
+  }
+
+  .stat-item-value {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--color-accent-2);
+    white-space: nowrap;
+  }
+
+  .stat-item-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+
+  .filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: var(--space-2);
+    font-size: 0.9rem;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .filter-toggle input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--color-accent);
   }
 
   .findings-section {
@@ -218,6 +480,10 @@ import Layout from "../layouts/Layout.astro";
     border-radius: 6px;
     padding: var(--space-4);
     margin-bottom: var(--space-5);
+  }
+
+  .findings-section h2 {
+    font-size: 1.3rem;
   }
 
   .section-note {
@@ -266,61 +532,141 @@ import Layout from "../layouts/Layout.astro";
     color: var(--color-text-dim);
   }
 
-  .bar-chart {
+  .chart-legend {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-4);
+    margin-bottom: var(--space-3);
   }
 
-  .bar-row {
-    display: grid;
-    grid-template-columns: 4rem 1fr 4rem;
+  .legend-item {
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-  }
-
-  .bar-label {
+    gap: 0.4rem;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--color-text-dim);
   }
 
-  .bar-track {
-    height: 0.9rem;
+  .legend-swatch {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 2px;
+  }
+
+  .legend-go {
+    background: var(--color-accent);
+  }
+
+  .legend-conv {
+    background: var(--color-accent-2);
+  }
+
+  .comparison-chart svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .outcome-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .outcome-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-line);
+    border-radius: 4px;
+    padding: var(--space-3);
+  }
+
+  .outcome-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .outcome-label {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .outcome-context-note {
+    font-size: 0.78rem;
+    color: var(--color-text-dim);
+  }
+
+  .outcome-wpa-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: var(--space-2) 0;
+    margin: 0.1rem 0;
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .outcome-wpa {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--color-accent-2);
+  }
+
+  .outcome-wpa-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+
+  .outcome-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .outcome-stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .outcome-stat-bar {
+    height: 0.4rem;
     background: var(--color-bg);
     border: 1px solid var(--color-line);
     border-radius: 999px;
     overflow: hidden;
   }
 
-  .bar-fill {
+  .outcome-stat-bar span {
     display: block;
     height: 100%;
-    background: var(--color-accent);
+    background: var(--color-accent-2);
   }
 
-  .bar-value {
+  .outcome-stat-bar-dim span {
+    background: var(--color-text-dim);
+  }
+
+  .outcome-n {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
-    text-align: right;
+    font-size: 0.72rem;
+    color: var(--color-text-dim);
   }
 
   .trend-chart svg {
     width: 100%;
     height: auto;
-  }
-
-  .trend-labels {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--color-text-dim);
-    margin-top: var(--space-2);
-  }
-
-  .trend-labels-y {
-    margin-top: 0.35rem;
   }
 
   .coach-leaderboard {

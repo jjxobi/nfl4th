@@ -35,3 +35,22 @@ def coach_tendency_report(
         rows.append(row)
 
     return pd.DataFrame(rows).sort_values("coach").reset_index(drop=True)
+
+
+def coach_conversion_rates(go_for_it_by_coach: pd.DataFrame) -> pd.DataFrame:
+    # Raw observed rate, no shrinkage: unlike decision tendency (where
+    # shrinking toward a baseline makes sense because coaches differ in how
+    # aggressive they are), conversion success is treated site-wide as a
+    # property of the situation, not the coach, so there's no baseline to
+    # shrink toward here.
+    rows = []
+    for coach, group in go_for_it_by_coach.groupby("coach"):
+        rows.append(
+            {
+                "coach": coach,
+                "n_go_for_it_attempts": len(group),
+                "n_conversions": int(group["converted"].sum()),
+                "conversion_rate": float(group["converted"].mean()),
+            }
+        )
+    return pd.DataFrame(rows, columns=["coach", "n_go_for_it_attempts", "n_conversions", "conversion_rate"])

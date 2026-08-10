@@ -192,23 +192,6 @@ service, using the `render.yaml` blueprint at the repo root. Frontend
 deploys to [Netlify](https://netlify.com), using `frontend/netlify.toml`,
 with `frontend` set as the site's base directory.
 
-To actually deploy:
-1. Push this repo to GitHub.
-2. On Render, create a new Blueprint from the repo; it reads `render.yaml`
-   automatically. Set the `ALLOWED_ORIGINS` environment variable to the
-   frontend's real URL once you know it.
-3. On Netlify, create a new site from the repo, with `frontend` as the base
-   directory. Set `PUBLIC_API_URL` in Netlify's environment variables to the
-   Render service's URL. The first deploy happens before this variable
-   exists, so trigger a redeploy afterward to pick it up.
-4. Point a subdomain (e.g. `4thdown.yourdomain.com`) at the Netlify site via
-   a DNS CNAME record, then add it as a custom domain in Netlify's site
-   settings.
-
-`frontend/astro.config.mjs` currently sets `site` to a placeholder
-(`https://4thdown.example.com`) so Open Graph tags resolve to absolute URLs.
-Update it to the real subdomain once DNS is set up.
-
 Model freshness is automatic: `.github/workflows/retrain.yml` runs every
 Tuesday, retrains on all available seasons, and only commits the refreshed
 `api/models/` if a sanity check against a fixed historical holdout still

@@ -9,6 +9,9 @@ export interface CoachProfile {
   n_decisions: number;
   shrinkage_weight: number;
   last_season: number;
+  n_go_for_it_attempts: number;
+  n_conversions: number;
+  conversion_rate: number;
   punt: DecisionRates;
   field_goal: DecisionRates;
   go_for_it: DecisionRates;
@@ -99,11 +102,19 @@ export interface ConversionByDistance {
   conversion_probability: number;
 }
 
+export interface OutcomeContextEntry {
+  context: string;
+  n_decisions: number;
+  avg_win_prob_added: number;
+  drive_scored_rate: number;
+}
+
 export interface FindingsData {
   situational_splits: SituationalSplit[];
   coach_bucket_leaderboard: CoachBucketEntry[];
   league_trend: LeagueTrendPoint[];
   conversion_by_distance: ConversionByDistance[];
+  outcome_by_context: OutcomeContextEntry[];
 }
 
 export async function getFindings(): Promise<FindingsData> {

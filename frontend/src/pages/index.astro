@@ -2,10 +2,10 @@
 import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout title="4th Down Coach Tendencies | NFL 4th Down Predictor" description="What will an NFL head coach actually do on 4th down? A tendency model built on real play by play history, not the win probability optimal call.">
+<Layout title="What Will Your Team's Head Coach Do on 4th Down? | NFL 4th Down Predictor" description="What will your team's NFL head coach actually do on 4th down? A tendency model built on real play by play history, not the win probability optimal call.">
   <section class="hero">
     <p class="eyebrow">NFL 4th down coach tendencies</p>
-    <h1>What will this coach actually do on 4th down?</h1>
+    <h1>What will your team's head coach do on 4th down?</h1>
     <p class="lede">
       Most 4th down tools tell you the mathematically optimal call. This one tells you what a
       specific coach is actually likely to do, based on their real history, not what a model
@@ -14,7 +14,7 @@ import Layout from "../layouts/Layout.astro";
   </section>
 
   <section class="link-cards">
-    <a class="link-card" href="/predict">
+    <a class="link-card link-card-featured" href="/predict">
       <h2>Predict a call</h2>
       <p>Set up a situation and a coach, see the model's real prediction next to that coach's career tendency and the league baseline.</p>
       <span class="link-cta">Try the predictor &rarr;</span>
@@ -29,11 +29,6 @@ import Layout from "../layouts/Layout.astro";
       <p>Leaderboards, situational splits, and how the league's aggressiveness has changed since 2010.</p>
       <span class="link-cta">Explore the findings &rarr;</span>
     </a>
-    <a class="link-card" href="/about">
-      <h2>About this project</h2>
-      <p>How the model works, where the data comes from, and why it's built around tendency instead of optimal play.</p>
-      <span class="link-cta">Read the writeup &rarr;</span>
-    </a>
   </section>
 </Layout>
 
@@ -41,15 +36,6 @@ import Layout from "../layouts/Layout.astro";
   .hero {
     max-width: 52rem;
     margin-bottom: var(--space-6);
-  }
-
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-    margin: 0 0 var(--space-2);
   }
 
   .lede {
@@ -60,6 +46,7 @@ import Layout from "../layouts/Layout.astro";
   .link-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    grid-auto-flow: dense;
     gap: var(--space-4);
     margin-bottom: var(--space-6);
   }
@@ -81,9 +68,25 @@ import Layout from "../layouts/Layout.astro";
     transform: translateY(-2px);
   }
 
+  .link-card-featured {
+    grid-column: span 2;
+    background: var(--color-surface-raised);
+    border-color: var(--color-accent);
+  }
+
+  .link-card-featured h2 {
+    font-size: 1.4rem;
+  }
+
   .link-card h2 {
     font-size: 1.2rem;
     margin: 0;
+  }
+
+  @media (max-width: 40rem) {
+    .link-card-featured {
+      grid-column: span 1;
+    }
   }
 
   .link-card p {

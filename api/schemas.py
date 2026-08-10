@@ -14,6 +14,9 @@ class CoachProfile(BaseModel):
     n_decisions: int
     shrinkage_weight: float
     last_season: int
+    n_go_for_it_attempts: int
+    n_conversions: int
+    conversion_rate: float
     punt: DecisionRates
     field_goal: DecisionRates
     go_for_it: DecisionRates
@@ -78,8 +81,17 @@ class ConversionByDistance(BaseModel):
     conversion_probability: float
 
 
+class OutcomeContextEntry(BaseModel):
+    context: str
+    n_decisions: int
+    avg_win_prob_added: float
+    converted_rate: float
+    drive_scored_rate: float
+
+
 class FindingsResponse(BaseModel):
     situational_splits: list[SituationalSplit]
     coach_bucket_leaderboard: list[CoachBucketEntry]
     league_trend: list[LeagueTrendPoint]
     conversion_by_distance: list[ConversionByDistance]
+    outcome_by_context: list[OutcomeContextEntry]
