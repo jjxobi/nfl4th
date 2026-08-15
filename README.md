@@ -15,7 +15,8 @@ and that gap is part of the point.
 ## How it works
 
 1. **Ingest**: pulls play by play and schedule data from nflverse
-   (`nfl_data_py`) for the 2010-2024 seasons, cached locally as parquet.
+   (`nfl_data_py`) for 2010 through the most recent completed season,
+   cached locally as parquet.
 2. **Feature engineering**: filters play by play down to genuine 4th down
    decisions (excludes penalty-negated plays, kneels, and other noise),
    attaches the head coach who made the call, and builds situational
@@ -54,12 +55,17 @@ and that gap is part of the point.
    baseline rate, blended by sample size using empirical Bayes shrinkage
    (`weight = n / (n + k)`), so a coach's early decisions are shown
    appropriately regressed toward the baseline rather than as noisy
-   extremes.
+   extremes. The same report also carries each coach's real go-for-it
+   success rate: a raw observed rate with no shrinkage, since whether a
+   conversion works is treated as a property of the situation, not the
+   coach.
 6. **Findings**: aggregates situational go-for-it splits by distance,
    conversion odds by distance from the conversion model, the league-wide
-   go-for-it rate trend by season, and the top coaches by go-for-it rate
-   within each distance bucket (minimum sample size applied) into
-   `findings.json`, which powers the findings page.
+   go-for-it rate trend by season, the top coaches by go-for-it rate
+   within each distance bucket (minimum sample size applied), and a
+   win-probability outcome breakdown by whether the team was trailing,
+   tied, or leading at the time, into `findings.json`, which powers the
+   findings page.
 
 ## Results
 
@@ -157,23 +163,25 @@ Run it locally:
 
 Endpoints:
 - `GET /` - health check
-- `GET /coaches` - every coach's tendency profile
+- `GET /coaches` - every coach's decision tendency profile plus their real
+  go-for-it success rate and attempt/conversion counts
 - `GET /coaches/{name}` - one coach's profile
 - `POST /predict` - given a situation and a coach, returns the model's
   predicted decision, that coach's career average, a coach-agnostic league
   baseline, and a `conversion_probability` for that situation from the
   situation-only conversion model
 - `GET /findings` - pre-computed situational splits, conversion odds by
-  distance, league-wide trend by season, and the coach-bucket leaderboard
-  that power the findings page
+  distance, league-wide trend by season, the coach-bucket leaderboard, and
+  the win-probability outcome breakdown that power the findings page
 
 Interactive docs are available at `/docs` once the server is running.
 
 ## Frontend
 
-A static Astro site in `frontend/` consumes the backend API: a situation
-predictor, a coach tendency browser, and a findings page of league-wide
-patterns pulled from the data. Requires Node >= 22.12.
+A static Astro site in `frontend/` consumes the backend API: a home page, a
+situation predictor, a coach tendency browser, a findings page of
+league-wide patterns pulled from the data, and a methodology page. Requires
+Node >= 22.12.
 
 ```bash
 cd frontend
@@ -201,8 +209,10 @@ keep coach tendencies current through the season.
 
 ## What's next
 
-Phase 2 is complete: backend API, frontend, deployment, and automated weekly
-retraining are all built and described above. Nothing further is currently
+The pipeline, backend API, frontend, deployment, and automated weekly
+retraining are all built and described above, along with the situation-only
+conversion model and the per-coach conversion tracking and win-probability
+outcome data behind the findings page. Nothing further is currently
 planned. Deliberately out of scope for now: user accounts or saved
 comparisons, a win-probability-optimal decision model shown alongside the
 tendency prediction, and historical charts of how a coach's aggression has
