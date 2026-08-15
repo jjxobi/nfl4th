@@ -13,6 +13,19 @@ import Layout from "../layouts/Layout.astro";
     </p>
   </section>
 
+  <section class="how-to-use">
+    <h2>How to use this</h2>
+    <p>
+      Start with a coach and a situation. Open the predictor, pick a coach, and set the down,
+      distance, score, and clock. You'll see what the model thinks they'll actually do, next to
+      that coach's career habits and the league average.
+    </p>
+    <p>
+      For the bigger picture, browse every coach's tendencies side by side, or check the findings
+      page for what's changed leaguewide since 2010.
+    </p>
+  </section>
+
   <section class="link-cards">
     <a class="link-card link-card-featured" href="/predict">
       <h2>Predict a call</h2>
@@ -41,6 +54,23 @@ import Layout from "../layouts/Layout.astro";
   .lede {
     font-size: 1.05rem;
     max-width: 46rem;
+  }
+
+  .how-to-use {
+    max-width: 46rem;
+    padding: var(--space-4) 0;
+    margin-bottom: var(--space-5);
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .how-to-use h2 {
+    font-size: 1.15rem;
+    margin-bottom: var(--space-2);
+  }
+
+  .how-to-use p {
+    margin: 0;
   }
 
   .link-cards {

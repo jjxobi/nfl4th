@@ -1,0 +1,78 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Methodology | NFL 4th Down Predictor" description="How and why this project predicts what an NFL head coach will actually do on 4th down, explained simply.">
+  <section class="about">
+    <p class="eyebrow">Methodology</p>
+    <h1>Tendency, not optimal play</h1>
+    <p class="lede">
+      Most public 4th down tools tell you the mathematically optimal call. This project answers a
+      different question: what will a specific coach actually do, based on how they've really
+      called these decisions in the past. The two often disagree, and that gap is the whole point.
+    </p>
+
+    <h2>Why this matters</h2>
+    <p>
+      Coaches don't always make the textbook-correct call. Their real tendency reflects risk
+      tolerance, how much they trust their offense, and years of instinct built up over a career.
+      That's worth modeling directly, instead of assuming every coach plays a mathematically
+      optimal game.
+    </p>
+
+    <h2>How it works</h2>
+    <p>
+      Every 4th down decision an NFL head coach has made since 2010 (going for it, punting, or
+      attempting a field goal) is pulled from real play by play data, then matched to the coach
+      who called it and the exact situation: down and distance, field position, score, time
+      remaining, timeouts, and how much head coaching experience they had at that point.
+    </p>
+    <p>
+      Two machine learning models are trained side by side on that history: a decision tree
+      ensemble and a neural network, each learning its own picture of how a coach's tendencies
+      shift with the situation. Averaging their two predictions together consistently performs
+      better than either model alone.
+    </p>
+    <p>
+      A coach's very first 4th down decision comes with no track record to go on. Early in their
+      career, the model's prediction leans on how similar coaches have handled similar
+      situations, then gradually shifts toward that coach's own real behavior as more of their
+      decisions come in, the same way a scouting read sharpens over a coach's first season.
+    </p>
+    <p>
+      A third model answers a different question: if a team does go for it,
+      how likely is the attempt to actually succeed? That model looks only at the situation, not
+      at who's calling the play, because whether a conversion works is a property of the down,
+      distance, and field position, not of who's coaching. Its estimate appears next to every
+      prediction, and it's what drives the conversion odds chart on <a href="/findings">Findings</a>.
+    </p>
+
+    <h2>The data</h2>
+    <p>
+      Play by play and schedule data comes from nflverse, a widely used, freely available source
+      for real NFL statistics. It refreshes automatically every week during the season, so
+      coaching changes and new tendencies show up without anyone doing manual work.
+    </p>
+
+    <h2>The code</h2>
+    <p>
+      Full source, the model training pipeline, and the real accuracy numbers behind these
+      predictions are on <a href="https://github.com/jjxobi/nfl4th">GitHub</a>.
+    </p>
+  </section>
+</Layout>
+
+<style>
+  .about {
+    max-width: 46rem;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+  }
+
+  .about h2 {
+    font-size: 1.3rem;
+    margin-top: var(--space-5);
+  }
+</style>
