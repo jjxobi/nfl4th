@@ -206,14 +206,3 @@ Tuesday, retrains on all available seasons, and only commits the refreshed
 clears a reasonable accuracy floor. A passing run's commit lands on `master`
 and both Render and Netlify redeploy on push, so no manual step is needed to
 keep coach tendencies current through the season.
-
-## What's next
-
-The pipeline, backend API, frontend, deployment, and automated weekly
-retraining are all built and described above, along with the situation-only
-conversion model and the per-coach conversion tracking and win-probability
-outcome data behind the findings page. Nothing further is currently
-planned. Deliberately out of scope for now: user accounts or saved
-comparisons, a win-probability-optimal decision model shown alongside the
-tendency prediction, and historical charts of how a coach's aggression has
-trended over their career.
