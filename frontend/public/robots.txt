@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nfl4th.jesse-obrien.com/sitemap-index.xml
