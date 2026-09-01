@@ -57,10 +57,19 @@ def _load_cached_seasons(
 
     if missing_seasons:
         fetched = fetch_fn(missing_seasons)
+        fetched_seasons = set(fetched["season"]) if "season" in fetched.columns else set()
         for season in missing_seasons:
+            if season not in fetched_seasons:
+                # Not published upstream yet (e.g. the current season before its
+                # first game). Skip without caching, so the next call retries the
+                # fetch instead of locking in an empty result once real data ships.
+                continue
             season_df = fetched[fetched["season"] == season]
             season_df.to_parquet(cache_subdir / f"{season}.parquet")
             frames.append(season_df[columns] if columns is not None else season_df)
+
+    if not frames:
+        return pd.DataFrame(columns=columns) if columns is not None else pd.DataFrame()
 
     return (
         pd.concat(frames, ignore_index=True)
